@@ -199,11 +199,12 @@ def get_progress_bar_string(pct):
     pct = float(str(pct).strip("%"))
     p = min(max(pct, 0), 100)
     cFull = int(p // 8)
-    cPart = int(p % 8 - 1)
-    p_str = "■" * cFull
-    if cPart >= 0:
-        p_str += ["▤", "▥", "▦", "▧", "▨", "▩", "■"][cPart]
-    p_str += "□" * (12 - cFull)
+    # Replace these IDs with your custom emoji IDs for the progress bar
+    PRG_FULL = '<tg-emoji emoji-id="5422682311856501431">🌷</tg-emoji>'
+    PRG_EMPTY = '<tg-emoji emoji-id="5971816626796892111">🔹</tg-emoji>'
+    
+    p_str = PRG_FULL * cFull
+    p_str += PRG_EMPTY * (12 - cFull)
     return f"[{p_str}]"
 
 
@@ -224,6 +225,22 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         status_dict[sid]["page_no"] = page_no
     start_position = (page_no - 1) * STATUS_LIMIT
 
+    # --- REPLACE THESE IDs WITH REAL ONES ---
+    EM_1 = '<tg-emoji emoji-id="5877219383691972108">➕</tg-emoji>'
+    EM_2 = '<tg-emoji emoji-id="5195111279244619776">🍀</tg-emoji>'
+    EM_3 = '<tg-emoji emoji-id="5287533898803211359">📫</tg-emoji>'
+    EM_4 = '<tg-emoji emoji-id="5411590687663608498">⚡</tg-emoji>'
+    EM_5 = '<tg-emoji emoji-id="5422407403884798028">🍀</tg-emoji>'
+    EM_6 = '<tg-emoji emoji-id="5424867354993513047">🌷</tg-emoji>'
+    EM_7 = '<tg-emoji emoji-id="5443127283898405358">⬇️</tg-emoji>'
+    EM_8 = '<tg-emoji emoji-id="5445355530111437729">⬆️</tg-emoji>'
+    EM_9 = '<tg-emoji emoji-id="5765005318610228026">❌</tg-emoji>'
+    EM_10 = '<tg-emoji emoji-id="5285439518130857782">❤️</tg-emoji>'
+    EM_11 = '<tg-emoji emoji-id="5190642636356072894">☔️</tg-emoji>'
+    EM_12 = '<tg-emoji emoji-id="5256218768262056531">🟪</tg-emoji>'
+    EM_13 = '<tg-emoji emoji-id="5285535716808342592">☠️</tg-emoji>'
+    # ----------------------------------------
+
     for index, task in enumerate(
         tasks[start_position : STATUS_LIMIT + start_position], start=1
     ):
@@ -239,7 +256,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             msg += f"\n┖ <b>Sub Name</b> → <i>{task.listener.subname}</i>"
         elapsed = time() - task.listener.message.date.timestamp()
 
-        msg += f"\n\n<b>Task By {task.listener.message.from_user.mention(style='html')} </b> ( #ID{task.listener.message.from_user.id} )"
+        msg += f"\n\n<b>Task By <code>{task.listener.message.from_user.mention(style='html')}</code> </b> ( #ID{task.listener.message.from_user.id} )"
         if task.listener.is_super_chat:
             msg += f" <i>[<a href='{task.listener.message.link}'>Link</a>]</i>"
 
@@ -248,7 +265,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             and task.listener.progress
         ):
             progress = task.progress()
-            msg += f"\n┟ {get_progress_bar_string(progress)} <i>{progress}</i>"
+            msg += f"\n{EM_1} {get_progress_bar_string(progress)} <i>{progress}</i>"
             if task.listener.subname:
                 subsize = f" / {get_readable_file_size(task.listener.subsize)}"
                 ac = len(task.listener.files_to_proceed)
@@ -256,31 +273,31 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             else:
                 subsize = ""
                 count = ""
-            msg += f"\n┠ <b>Processed</b> → <i>{task.processed_bytes()}{subsize} of {task.size()}</i>"
+            msg += f"\n{EM_2} <b>Processed</b> → <i>{task.processed_bytes()}{subsize} of {task.size()}</i>"
             if count:
-                msg += f"\n┠ <b>Count:</b> → <b>{count}</b>"
-            msg += f"\n┠ <b>Status</b> → <b>{tstatus}</b>"
-            msg += f"\n┠ <b>Speed</b> → <i>{task.speed()}</i>"
-            msg += f"\n┠ <b>Time</b> → <i>{task.eta()} of {get_readable_time(elapsed + get_raw_time(task.eta()))} ( {get_readable_time(elapsed)} )</i>"
+                msg += f"\n{EM_4} <b>Count:</b> → <b>{count}</b>"
+            msg += f"\n{EM_3} <b>Status</b> → <b>{tstatus}</b>"
+            msg += f"\n{EM_4} <b>Speed</b> → <i>{task.speed()}</i>"
+            msg += f"\n{EM_5} <b>Time</b> → <i>{task.eta()} of {get_readable_time(elapsed + get_raw_time(task.eta()))} ( {get_readable_time(elapsed)} )</i>"
             if tstatus == MirrorStatus.STATUS_DOWNLOAD and (
                 task.listener.is_torrent or task.listener.is_qbit
             ):
                 try:
-                    msg += f"\n┠ <b>Seeders</b> → {task.seeders_num()} | <b>Leechers</b> → {task.leechers_num()}"
+                    msg += f"\n{EM_2} <b>Seeders</b> → {task.seeders_num()} | <b>Leechers</b> → {task.leechers_num()}"
                 except Exception:
                     pass
             # TODO: Add Connected Peers
         elif tstatus == MirrorStatus.STATUS_SEED:
-            msg += f"\n┠ <b>Size</b> → <i>{task.size()}</i> | <b>Uploaded</b>  → <i>{task.uploaded_bytes()}</i>"
-            msg += f"\n┠ <b>Status</b> → <b>{tstatus}</b>"
-            msg += f"\n┠ <b>Speed</b> → <i>{task.seed_speed()}</i>"
-            msg += f"\n┠ <b>Ratio</b> → <i>{task.ratio()}</i>"
-            msg += f"\n┠ <b>Time</b> → <i>{task.seeding_time()}</i> | <b>Elapsed</b> → <i>{get_readable_time(elapsed)}</i>"
+            msg += f"\n{EM_6} <b>Size</b> → <i>{task.size()}</i> | <b>Uploaded</b>  → <i>{task.uploaded_bytes()}</i>"
+            msg += f"\n{EM_3} <b>Status</b> → <b>{tstatus}</b>"
+            msg += f"\n{EM_4} <b>Speed</b> → <i>{task.seed_speed()}</i>"
+            msg += f"\n{EM_1} <b>Ratio</b> → <i>{task.ratio()}</i>"
+            msg += f"\n{EM_5} <b>Time</b> → <i>{task.seeding_time()}</i> | <b>Elapsed</b> → <i>{get_readable_time(elapsed)}</i>"
         else:
-            msg += f"\n┠ <b>Size</b> → <i>{task.size()}</i>"
-        msg += f"\n┠ <b>Engine</b> → <i>{task.engine}</i>"
-        msg += f"\n┠ <b>In Mode</b> → <i>{task.listener.mode[0]}</i>"
-        msg += f"\n┠ <b>Out Mode</b> → <i>{task.listener.mode[1]}</i>"
+            msg += f"\n{EM_6} <b>Size</b> → <i>{task.size()}</i>"
+        msg += f"\n{EM_13} <b>Engine</b> → <i>{task.engine}</i>"
+        msg += f"\n{EM_7} <b>In Mode</b> → <i>{task.listener.mode[0]}</i>"
+        msg += f"\n{EM_8} <b>Out Mode</b> → <i>{task.listener.mode[1]}</i>"
         from ..telegram_helper.bot_commands import BotCommands
 
         if tstatus in [
@@ -289,9 +306,9 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             MirrorStatus.STATUS_QUEUEDL,
         ]:
             if not task.listener.is_nzb and not task.listener.is_jd:
-                msg += f"\n┠ <b>Select</b> → /{BotCommands.SelectCommand[1]}_{task.gid()[:8]}"
+                msg += f"\n{EM_2} <b>Select</b> → /{BotCommands.SelectCommand[1]}_{task.gid()[:8]}"
 
-        msg += f"\n<b>┖ Stop</b> → <i>/{BotCommands.CancelTaskCommand[1]}_{task.gid()[:8]}</i>\n\n"
+        msg += f"\n{EM_9} <b>Stop</b> → <i>/{BotCommands.CancelTaskCommand[1]}_{task.gid()[:8]}</i>\n\n"
 
     if len(msg) == 0:
         if status == "All":
@@ -299,7 +316,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         else:
             msg = f"No Active {status} Tasks!\n\n"
 
-    msg += "⌬ <b><u>Bot Stats</u></b>"
+    msg += f"\n{EM_12} <b><u>Bot Stats</u></b>"
     buttons = ButtonMaker()
     if not is_user:
         buttons.data_button(
@@ -323,6 +340,6 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         "♻️ Refresh", f"status {sid} ref", position="header", style=ButtonStyle.PRIMARY
     )
     button = buttons.build_menu(8)
-    msg += f"\n┟ <b>CPU</b> → {cpu_percent()}% | <b>F</b> → {get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)} [{round(100 - disk_usage(DOWNLOAD_DIR).percent, 1)}%]"
-    msg += f"\n┖ <b>RAM</b> → {virtual_memory().percent}% | <b>UP</b> → {get_readable_time(time() - bot_start_time)}"
+    msg += f"\n{EM_10} <b>CPU</b> → {cpu_percent()}% | <b>F</b> → {get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)} [{round(100 - disk_usage(DOWNLOAD_DIR).percent, 1)}%]"
+    msg += f"\n{EM_11} <b>RAM</b> → {virtual_memory().percent}% | <b>UP</b> → {get_readable_time(time() - bot_start_time)}"
     return msg, button
