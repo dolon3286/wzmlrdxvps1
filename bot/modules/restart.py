@@ -56,8 +56,6 @@ def _restart_header(now, is_restart_chat=False):
         f"┟ <b>Date:</b> {now.strftime('%d/%m/%y')}\n"
         f"┠ <b>Time:</b> {now.strftime('%I:%M:%S %p')}\n"
         f"┠ <b>TimeZone:</b> {Config.TIMEZONE}\n"
-        f"┠ <b>Branch:</b> {Config.UPSTREAM_BRANCH}\n"
-        f"┖ <b>Version:</b> {get_version()}"
     )
 
 
