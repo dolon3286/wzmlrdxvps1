@@ -405,35 +405,26 @@ class SevenZ:
             split_size = (size // parts) + (size % parts)
         else:
             split_size = self._listener.split_size
-        cmd = [
-            "7z",
-            f"-v{split_size}b",
-            "a",
-            "-mx=0",
-            "-mmt=on",
-            f"-p{pswd}",
-            up_path,
-            dl_path,
-            "-bsp1",
-            "-bse1",
-            "-bb3",
-        ]
+        cmd = ["7z", "a", "-mx=0", "-mmt=on"]
         if self._listener.is_leech and int(size) > self._listener.split_size:
-            if not pswd:
-                del cmd[4]
+            # Keep archive volumes safely below Telegram/Pyrogram's hard cap.
+            # 7z can add small per-volume overhead, so using the exact limit can
+            # create parts that Pyrogram rejects as slightly larger than 2000/4000 MiB.
+            split_size = max(split_size - 5 * 1024 * 1024, 1024 * 1024)
+            cmd.append(f"-v{split_size}b")
             LOGGER.info(f"Zip: orig_path: {dl_path}, zip_path: {up_path}.0*")
         else:
-            del cmd[1]
-            if not pswd:
-                del cmd[3]
             LOGGER.info(f"Zip: orig_path: {dl_path}, zip_path: {up_path}")
+        if pswd:
+            cmd.append(f"-p{pswd}")
+        cmd.extend([up_path, dl_path, "-bsp1", "-bse1", "-bb3"])
         if self._listener.is_cancelled:
             return False
         self._listener.subproc = await create_subprocess_exec(
             *cmd, stdout=PIPE, stderr=PIPE
         )
         await self._sevenz_progress()
-        _, stderr = await self._listener.subproc.communicate()
+        stdout, stderr = await self._listener.subproc.communicate()
         code = self._listener.subproc.returncode
         if self._listener.is_cancelled:
             return False
@@ -447,8 +438,13 @@ class SevenZ:
             if await aiopath.exists(up_path):
                 await remove(up_path)
             try:
+                stdout = stdout.decode().strip()
+            except Exception:
+                stdout = "Unable to decode stdout!"
+            try:
                 stderr = stderr.decode().strip()
             except Exception:
-                stderr = "Unable to decode the error!"
-            LOGGER.error(f"{stderr}. Unable to zip this path: {dl_path}")
+                stderr = "Unable to decode stderr!"
+            error = stderr or stdout
+            LOGGER.error(f"{error}. Unable to zip this path: {dl_path}")
             return dl_path

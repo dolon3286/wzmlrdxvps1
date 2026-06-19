@@ -37,6 +37,9 @@ from ...ext_utils.media_utils import (
 from ...telegram_helper.message_utils import delete_message
 
 LOGGER = getLogger(__name__)
+BOT_UPLOAD_LIMIT = 2000 * 1024 * 1024
+UPLOAD_LIMIT_MARGIN = 5 * 1024 * 1024
+BOT_SAFE_UPLOAD_LIMIT = BOT_UPLOAD_LIMIT - UPLOAD_LIMIT_MARGIN
 
 
 class TelegramUploader:
@@ -429,7 +432,13 @@ class TelegramUploader:
                                     if len(msgs) > 1:
                                         await self._send_media_group(subkey, key, msgs)
                     if self._listener.transmission_mode == "both":
-                        self._user_session = f_size > 2097152000
+                        self._user_session = bool(
+                            TgClient.user
+                            and (
+                                TgClient.IS_PREMIUM_USER
+                                or f_size > BOT_SAFE_UPLOAD_LIMIT
+                            )
+                        )
                         if self._user_session:
                             self._sent_msg = await TgClient.user.get_messages(
                                 chat_id=self._sent_msg.chat.id,
