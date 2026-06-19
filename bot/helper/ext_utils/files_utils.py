@@ -407,6 +407,10 @@ class SevenZ:
             split_size = self._listener.split_size
         cmd = ["7z", "a", "-mx=0", "-mmt=on"]
         if self._listener.is_leech and int(size) > self._listener.split_size:
+            # Keep archive volumes safely below Telegram/Pyrogram's hard cap.
+            # 7z can add small per-volume overhead, so using the exact limit can
+            # create parts that Pyrogram rejects as slightly larger than 2000/4000 MiB.
+            split_size = max(split_size - 5 * 1024 * 1024, 1024 * 1024)
             cmd.append(f"-v{split_size}b")
             LOGGER.info(f"Zip: orig_path: {dl_path}, zip_path: {up_path}.0*")
         else:
