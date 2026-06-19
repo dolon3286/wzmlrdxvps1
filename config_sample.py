@@ -28,9 +28,8 @@ FFMPEG_CMDS = {}
 UPLOAD_PATHS = {}
 WEB_ACCESS_PASSWORD=""  # Secret for deriving proxy passwords. Logs derived passwords at startup.
 
-# Hyper Tg Downloader
+# Telegram helper bots
 HELPER_TOKENS = ""
-USE_HYPER = True
 
 # MegaAPI v4.30
 MEGA_EMAIL = ""

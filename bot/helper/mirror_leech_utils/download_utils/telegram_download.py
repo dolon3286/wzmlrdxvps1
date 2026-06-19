@@ -3,8 +3,6 @@ from time import time
 from secrets import token_hex
 from pyrogram.errors import FloodWait, PeerIdInvalid, ChannelInvalid
 
-from bot.helper.ext_utils.hyperdl_utils import HypertgDownload
-
 try:
     from pyrogram.errors import FloodPremiumWait
 except ImportError:
@@ -16,7 +14,6 @@ from .... import (
     task_dict_lock,
 )
 from ....core.tg_client import TgClient
-from ....core.config_manager import Config
 from ...ext_utils.task_manager import check_running_tasks, stop_duplicate_check
 from ...mirror_leech_utils.status_utils.queue_status import QueueStatus
 from ...mirror_leech_utils.status_utils.telegram_status import TelegramStatus
@@ -33,8 +30,6 @@ class TelegramDownloadHelper:
         self._listener = listener
         self._id = ""
         self.session = ""
-        self._hyper_dl = Config.USE_HYPER and len(TgClient.helper_bots) != 0 and Config.LEECH_DUMP_CHAT
-        self._hyper_dl_instance = None
 
     @property
     def speed(self):
@@ -50,7 +45,7 @@ class TelegramDownloadHelper:
         self._id = file_id
         async with task_dict_lock:
             task_dict[self._listener.mid] = TelegramStatus(
-                self._listener, self, gid, "dl", "hdl" if self._hyper_dl else ""
+                self._listener, self, gid, "dl"
             )
         if not from_queue:
             await self._listener.on_download_start()
@@ -85,44 +80,9 @@ class TelegramDownloadHelper:
 
     async def _download(self, message, path):
         try:
-            # TODO : Add support for user session ( Huh ??)
-            if self._hyper_dl:
-                try:
-                    self._hyper_dl_instance = HypertgDownload(self)
-                    download = await self._hyper_dl_instance.download_media(
-                        message,
-                        file_name=path,
-                        dump_chat=Config.LEECH_DUMP_CHAT,
-                    )
-                    if (
-                        self._hyper_dl_instance.dump_chat
-                        and self._hyper_dl_instance.message
-                        and hasattr(self._hyper_dl_instance.message, "id")
-                    ):
-                        self._listener.dump_chat = self._hyper_dl_instance.dump_chat
-                        self._listener.dump_msg_id = self._hyper_dl_instance.message.id
-                    self._hyper_dl_instance = None
-                except Exception:
-                    if Config.TRANSMISSION_MODE in ("user", "both"):
-                        try:
-                            user_message = await TgClient.user.get_messages(
-                                chat_id=message.chat.id, message_ids=message.id
-                            )
-                            download = await user_message.download(
-                                file_name=path, progress=self._on_download_progress
-                            )
-                        except Exception:
-                            download = await message.download(
-                                file_name=path, progress=self._on_download_progress
-                            )
-                    else:
-                        download = await message.download(
-                            file_name=path, progress=self._on_download_progress
-                        )
-            else:
-                download = await message.download(
-                    file_name=path, progress=self._on_download_progress
-                )
+            download = await message.download(
+                file_name=path, progress=self._on_download_progress
+            )
             if self._listener.is_cancelled:
                 return
         except (FloodWait, FloodPremiumWait) as f:
@@ -143,9 +103,10 @@ class TelegramDownloadHelper:
     async def add_download(self, message, path, session):
         self.session = session
         if not self.session:
-            if self._hyper_dl:
-                self.session = "hbots"
-            elif self._listener.transmission_mode in ("user", "both") and self._listener.is_super_chat:
+            if (
+                self._listener.transmission_mode in ("user", "both")
+                and self._listener.is_super_chat
+            ):
                 self.session = "user"
                 try:
                     message = await TgClient.user.get_messages(
@@ -228,10 +189,4 @@ class TelegramDownloadHelper:
         LOGGER.info(
             f"Cancelling download on user request: name: {self._listener.name} id: {self._id}"
         )
-        if self._hyper_dl_instance:
-            try:
-                await self._hyper_dl_instance.cancel()
-            except Exception:
-                pass
-            self._hyper_dl_instance = None
         await self._on_download_error("Stopped by user!")
