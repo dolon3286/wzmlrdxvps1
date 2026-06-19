@@ -1,4 +1,4 @@
-from asyncio import ensure_future, gather, sleep
+from asyncio import sleep
 from logging import getLogger
 from os import path as ospath, walk
 from re import match as re_match, sub as re_sub
@@ -90,6 +90,24 @@ class TelegramUploader:
         if self._thumb != "none" and not await aiopath.exists(self._thumb):
             self._thumb = None
 
+
+    def _get_leech_dest(self):
+        leech_dest = self._listener.leech_dest
+        if not leech_dest:
+            return None
+        if isinstance(leech_dest, int):
+            return leech_dest
+        leech_dest = str(leech_dest)
+        if leech_dest.startswith(("b:", "u:", "h:")):
+            leech_dest = leech_dest[2:]
+        if "|" in leech_dest:
+            leech_dest, _ = leech_dest.split("|", 1)
+        if leech_dest.lstrip("-").isdigit():
+            return int(leech_dest)
+        if leech_dest.lower() == "pm":
+            return self._listener.user_id
+        return leech_dest
+
     async def _msg_to_reply(self):
         if self._user_session and TgClient.user is None:
             self._user_session = False
@@ -116,12 +134,7 @@ class TelegramUploader:
                     self._is_private = self._sent_msg.chat.type.name == "PRIVATE"
                 if self._listener.leech_dest:
                     try:
-                        leech_dest = self._listener.leech_dest
-                        if not isinstance(leech_dest, int):
-                            if "|" in str(leech_dest):
-                                leech_dest, _ = str(leech_dest).split("|", 1)
-                            if leech_dest.lstrip("-").isdigit():
-                                leech_dest = int(leech_dest)
+                        leech_dest = self._get_leech_dest()
                         await self._log_msg.copy(chat_id=leech_dest)
                     except Exception as e:
                         if not self._listener.is_cancelled:
@@ -396,7 +409,6 @@ class TelegramUploader:
         # --- END: AUTO-ZIP IMAGES ---
 
         is_log_del = False
-        upload_tasks = []
         for dirpath, _, files in natsorted(await sync_to_async(walk, self._path)):
             if dirpath.strip().endswith("/yt-dlp-thumb"):
                 continue
@@ -450,10 +462,7 @@ class TelegramUploader:
                                 message_ids=self._sent_msg.id,
                             )
                     self._last_msg_in_group = False
-                    task = ensure_future(
-                        self._upload_file_task(file_, f_path, dirpath)
-                    )
-                    upload_tasks.append(task)
+                    await self._upload_file_task(file_, f_path, dirpath)
                     if self._listener.is_cancelled:
                         return
                 except Exception as err:
@@ -462,12 +471,7 @@ class TelegramUploader:
                     self._corrupted += 1
                     if self._listener.is_cancelled:
                         return
-        if upload_tasks:
-            results = await gather(*upload_tasks, return_exceptions=True)
-            for r in results:
-                if isinstance(r, Exception):
-                    LOGGER.error(f"Upload task error: {r}")
-            await sleep(1)
+        await sleep(1)
         for key, value in list(self._media_dict.items()):
             for subkey, msgs in list(value.items()):
                 if len(msgs) > 1:
@@ -692,12 +696,7 @@ class TelegramUploader:
                 await self._copy_media()
                 if self._listener.leech_dest:
                     try:
-                        leech_dest = self._listener.leech_dest
-                        if not isinstance(leech_dest, int):
-                            if "|" in str(leech_dest):
-                                leech_dest, _ = str(leech_dest).split("|", 1)
-                            if leech_dest.lstrip("-").isdigit():
-                                leech_dest = int(leech_dest)
+                        leech_dest = self._get_leech_dest()
                         await TgClient.bot.copy_message(
                             chat_id=leech_dest,
                             from_chat_id=sent_msg.chat.id,
