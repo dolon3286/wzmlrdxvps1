@@ -91,10 +91,6 @@ class Config:
     LEECH_FONT = ""
     LEECH_SPLIT_SIZE = 2097152000
     MEDIA_GROUP = False
-    USE_HYPER = True
-    HYPER_THREADS = 0
-    HYPER_PIPELINE = 4
-    HYPER_CHUNK = 512 * 1024
     CPU_LIMIT = 20
     THROTTLE_SERVICES = "auto"
     HYDRA_IP = ""
