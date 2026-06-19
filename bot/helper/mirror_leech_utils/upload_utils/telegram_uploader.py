@@ -299,6 +299,13 @@ class TelegramUploader:
                 self._msgs_dict[m.link] = m.caption
         self._sent_msg = msgs_list[-1]
 
+    async def _on_upload_progress(self, current, _):
+        if self._listener.is_cancelled:
+            if self._client is not None:
+                self._client.stop_transmission()
+            raise StopTransmission
+        self._processed_bytes = self._last_uploaded + current
+
     async def _copy_media(self):
         try:
             if self._bot_pm:
@@ -495,6 +502,7 @@ class TelegramUploader:
         title="",
     ):
         target_client = TgClient.user if self._user_session else self._listener.client
+        self._client = target_client
         return await target_client.send_video(
             chat_id=self._sent_msg.chat.id,
             video=f_path or self._up_path,
@@ -506,6 +514,7 @@ class TelegramUploader:
             supports_streaming=True,
             disable_notification=True,
             reply_to_message_id=self._sent_msg.id,
+            progress=self._on_upload_progress,
         ) if key == "videos" else await target_client.send_audio(
             chat_id=self._sent_msg.chat.id,
             audio=f_path or self._up_path,
@@ -516,6 +525,7 @@ class TelegramUploader:
             thumb=thumb if thumb and thumb != "none" else None,
             disable_notification=True,
             reply_to_message_id=self._sent_msg.id,
+            progress=self._on_upload_progress,
         ) if key == "audios" else await target_client.send_document(
             chat_id=self._sent_msg.chat.id,
             document=f_path or self._up_path,
@@ -523,12 +533,14 @@ class TelegramUploader:
             thumb=thumb if thumb and thumb != "none" else None,
             disable_notification=True,
             reply_to_message_id=self._sent_msg.id,
+            progress=self._on_upload_progress,
         ) if key == "documents" else await target_client.send_photo(
             chat_id=self._sent_msg.chat.id,
             photo=f_path or self._up_path,
             caption=cap_mono,
             disable_notification=True,
             reply_to_message_id=self._sent_msg.id,
+            progress=self._on_upload_progress,
         )
 
     async def _upload_file(self, cap_mono, file, o_path, force_document=False):
@@ -636,6 +648,10 @@ class TelegramUploader:
                 sent_msg = await self._telegram_upload(
                     cap_mono, thumb, key, f_path=o_path
                 )
+
+            if sent_msg:
+                self._last_uploaded += await aiopath.getsize(o_path)
+                self._processed_bytes = self._last_uploaded
 
             self._sent_msg = sent_msg
 
