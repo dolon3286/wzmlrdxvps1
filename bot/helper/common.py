@@ -440,8 +440,13 @@ class TaskConfig:
                 ) != self.get_config_path(self.up_dest):
                     raise ValueError("You must use the same config to clone!")
         else:
+            # Always upload leeched files to the configured main dump first.
+            # A per-user/explicit leech destination is treated as an additional
+            # copy target instead of replacing the main dump.
             self.leech_dest = self.up_dest or self.user_dict.get("LEECH_DUMP_CHAT")
-            self.up_dest = self.leech_dest or Config.LEECH_DUMP_CHAT
+            self.up_dest = Config.LEECH_DUMP_CHAT or self.leech_dest
+            if self.leech_dest == self.up_dest:
+                self.leech_dest = ""
             self.transmission_mode = Config.TRANSMISSION_MODE
             if self.bot_trans:
                 self.transmission_mode = "bot"
