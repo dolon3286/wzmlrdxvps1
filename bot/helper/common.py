@@ -1153,7 +1153,8 @@ class TaskConfig:
     async def proceed_compress(self, dl_path, gid):
         pswd = self.compress if isinstance(self.compress, str) else ""
         if self.is_leech and self.is_file:
-            new_folder = ospath.splitext(dl_path)[0]
+            raw_folder = ospath.splitext(dl_path)[0]
+            new_folder = raw_folder.rstrip() or raw_folder
             if await aiopath.isfile(new_folder):
                 new_folder = f"{new_folder}_temp"
             name = ospath.basename(dl_path)

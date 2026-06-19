@@ -9,11 +9,6 @@ from natsort import natsorted
 from PIL import Image
 from pyrogram import StopTransmission
 from pyrogram.errors import RPCError
-from pyrogram.raw.types import (
-    DocumentAttributeAudio,
-    DocumentAttributeFilename,
-    DocumentAttributeVideo,
-)
 from aiofiles.os import (
     path as aiopath,
     remove,
@@ -27,7 +22,6 @@ from pyrogram.types import (
 
 from ....core.config_manager import Config
 from ....core.tg_client import TgClient
-from ...ext_utils.hyperup_utils import HypertgUpload
 from ...ext_utils.bot_utils import sync_to_async
 from ...ext_utils.files_utils import get_base_name, is_archive
 from ...ext_utils.status_utils import get_readable_file_size, get_readable_time
@@ -72,7 +66,6 @@ class TelegramUploader:
         self._log_msg = None
         self._user_session = self._listener.transmission_mode in ("user", "both")
         self._error = ""
-        self._hu = HypertgUpload(self) if Config.USE_HYPER and Config.LEECH_DUMP_CHAT else None
 
     async def _user_settings(self):
         settings_map = {
@@ -306,6 +299,13 @@ class TelegramUploader:
                 self._msgs_dict[m.link] = m.caption
         self._sent_msg = msgs_list[-1]
 
+    async def _on_upload_progress(self, current, _):
+        if self._listener.is_cancelled:
+            if self._client is not None:
+                self._client.stop_transmission()
+            raise StopTransmission
+        self._processed_bytes = self._last_uploaded + current
+
     async def _copy_media(self):
         try:
             if self._bot_pm:
@@ -489,77 +489,58 @@ class TelegramUploader:
         )
         return
 
-    async def _hyperul_upload(self, cap_mono, file, thumb, key, f_path=None, duration=0, width=0, height=0, artist="", title=""):
-        attr_base = [DocumentAttributeFilename(file_name=file)]
-        if key == "videos":
-            attrs = [
-                DocumentAttributeVideo(
-                    duration=duration or 0, w=width or 480, h=height or 320, supports_streaming=True
-                ),
-                *attr_base,
-            ]
-            mtype = "video"
-        elif key == "audios":
-            attrs = [
-                DocumentAttributeAudio(
-                    duration=duration or 0, performer=artist or "", title=title or ""
-                ),
-                *attr_base,
-            ]
-            mtype = "audio"
-        elif key == "documents":
-            attrs = attr_base
-            mtype = "document"
-        else:
-            mtype = "photo"
-            attrs = None
+    async def _telegram_upload(
+        self,
+        cap_mono,
+        thumb,
+        key,
+        f_path=None,
+        duration=0,
+        width=0,
+        height=0,
+        artist="",
+        title="",
+    ):
         target_client = TgClient.user if self._user_session else self._listener.client
-        if self._hu is None:
-            return await target_client.send_video(
-                chat_id=self._sent_msg.chat.id,
-                video=f_path or self._up_path,
-                caption=cap_mono,
-                duration=duration or 0,
-                width=width or 480,
-                height=height or 320,
-                thumb=thumb if thumb and thumb != "none" else None,
-                supports_streaming=True,
-                disable_notification=True,
-                reply_to_message_id=self._sent_msg.id,
-            ) if key == "videos" else await target_client.send_audio(
-                chat_id=self._sent_msg.chat.id,
-                audio=f_path or self._up_path,
-                caption=cap_mono,
-                duration=duration or 0,
-                performer=artist or "",
-                title=title or "",
-                thumb=thumb if thumb and thumb != "none" else None,
-                disable_notification=True,
-                reply_to_message_id=self._sent_msg.id,
-            ) if key == "audios" else await target_client.send_document(
-                chat_id=self._sent_msg.chat.id,
-                document=f_path or self._up_path,
-                caption=cap_mono,
-                thumb=thumb if thumb and thumb != "none" else None,
-                disable_notification=True,
-                reply_to_message_id=self._sent_msg.id,
-            ) if key == "documents" else await target_client.send_photo(
-                chat_id=self._sent_msg.chat.id,
-                photo=f_path or self._up_path,
-                caption=cap_mono,
-                disable_notification=True,
-                reply_to_message_id=self._sent_msg.id,
-            )
-        return await self._hu.upload(
-            target_client=target_client,
-            target_chat_id=self._sent_msg.chat.id,
-            file_path=f_path or self._up_path,
-            dump_chat_id=Config.LEECH_DUMP_CHAT,
-            media_type=mtype,
-            attributes=attrs,
-            thumb_path=thumb if thumb and thumb != "none" else None,
+        self._client = target_client
+        return await target_client.send_video(
+            chat_id=self._sent_msg.chat.id,
+            video=f_path or self._up_path,
             caption=cap_mono,
+            duration=duration or 0,
+            width=width or 480,
+            height=height or 320,
+            thumb=thumb if thumb and thumb != "none" else None,
+            supports_streaming=True,
+            disable_notification=True,
             reply_to_message_id=self._sent_msg.id,
+            progress=self._on_upload_progress,
+        ) if key == "videos" else await target_client.send_audio(
+            chat_id=self._sent_msg.chat.id,
+            audio=f_path or self._up_path,
+            caption=cap_mono,
+            duration=duration or 0,
+            performer=artist or "",
+            title=title or "",
+            thumb=thumb if thumb and thumb != "none" else None,
+            disable_notification=True,
+            reply_to_message_id=self._sent_msg.id,
+            progress=self._on_upload_progress,
+        ) if key == "audios" else await target_client.send_document(
+            chat_id=self._sent_msg.chat.id,
+            document=f_path or self._up_path,
+            caption=cap_mono,
+            thumb=thumb if thumb and thumb != "none" else None,
+            disable_notification=True,
+            reply_to_message_id=self._sent_msg.id,
+            progress=self._on_upload_progress,
+        ) if key == "documents" else await target_client.send_photo(
+            chat_id=self._sent_msg.chat.id,
+            photo=f_path or self._up_path,
+            caption=cap_mono,
+            disable_notification=True,
+            reply_to_message_id=self._sent_msg.id,
+            progress=self._on_upload_progress,
         )
 
     async def _upload_file(self, cap_mono, file, o_path, force_document=False):
@@ -611,7 +592,9 @@ class TelegramUploader:
                     return
                 if thumb == "none":
                     thumb = None
-                sent_msg = await self._hyperul_upload(cap_mono, file, thumb, key, f_path=o_path)
+                sent_msg = await self._telegram_upload(
+                    cap_mono, thumb, key, f_path=o_path
+                )
             elif is_video:
                 key = "videos"
                 duration = (await get_media_info(o_path))[0]
@@ -633,7 +616,15 @@ class TelegramUploader:
                     return
                 if thumb == "none":
                     thumb = None
-                sent_msg = await self._hyperul_upload(cap_mono, file, thumb, key, f_path=o_path, duration=duration, width=width, height=height)
+                sent_msg = await self._telegram_upload(
+                    cap_mono,
+                    thumb,
+                    key,
+                    f_path=o_path,
+                    duration=duration,
+                    width=width,
+                    height=height,
+                )
             elif is_audio:
                 key = "audios"
                 duration, artist, title = await get_media_info(o_path)
@@ -641,12 +632,26 @@ class TelegramUploader:
                     return
                 if thumb == "none":
                     thumb = None
-                sent_msg = await self._hyperul_upload(cap_mono, file, thumb, key, f_path=o_path, duration=duration, artist=artist, title=title)
+                sent_msg = await self._telegram_upload(
+                    cap_mono,
+                    thumb,
+                    key,
+                    f_path=o_path,
+                    duration=duration,
+                    artist=artist,
+                    title=title,
+                )
             else:
                 key = "photos"
                 if self._listener.is_cancelled:
                     return
-                sent_msg = await self._hyperul_upload(cap_mono, file, thumb, key, f_path=o_path)
+                sent_msg = await self._telegram_upload(
+                    cap_mono, thumb, key, f_path=o_path
+                )
+
+            if sent_msg:
+                self._last_uploaded += await aiopath.getsize(o_path)
+                self._processed_bytes = self._last_uploaded
 
             self._sent_msg = sent_msg
 
