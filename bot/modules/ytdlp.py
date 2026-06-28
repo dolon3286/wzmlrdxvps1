@@ -21,7 +21,10 @@ from ..helper.ext_utils.links_utils import is_url
 from ..helper.ext_utils.task_manager import pre_task_check
 from ..helper.ext_utils.status_utils import get_readable_file_size, get_readable_time
 from ..helper.listeners.task_listener import TaskListener
-from ..helper.mirror_leech_utils.download_utils.yt_dlp_download import YoutubeDLHelper
+from ..helper.mirror_leech_utils.download_utils.yt_dlp_download import (
+    YoutubeDLHelper,
+    get_base_ytdlp_options,
+)
 from ..helper.telegram_helper.button_build import ButtonMaker
 from ..helper.telegram_helper.message_utils import (
     auto_delete_message,
@@ -382,7 +385,7 @@ class YtDlp(TaskListener):
         self.thumbnail_layout = args["-tl"]
         self.as_doc = args["-doc"]
         self.as_med = args["-med"]
-        self.folder_name = f"/{args["-m"]}".rstrip("/") if len(args["-m"]) > 0 else ""
+        self.folder_name = f"/{args['-m']}".rstrip("/") if len(args["-m"]) > 0 else ""
         self.bot_trans = args["-bt"]
         self.user_trans = args["-ut"]
         self.metadata_dict = self.default_metadata_dict.copy()
@@ -484,7 +487,7 @@ class YtDlp(TaskListener):
             f"Using cookies.txt file: {cookie_to_use} | User ID : {self.user_id}"
         )
 
-        options = {"usenetrc": True, "cookiefile": cookie_to_use}
+        options = get_base_ytdlp_options(cookie_to_use)
         if opt:
             for key, value in opt.items():
                 if key in ["postprocessors", "download_ranges"]:

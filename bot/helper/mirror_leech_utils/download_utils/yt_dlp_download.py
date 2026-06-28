@@ -21,6 +21,49 @@ from ..status_utils.yt_dlp_status import YtDlpStatus
 LOGGER = getLogger(__name__)
 
 
+def get_base_ytdlp_options(cookiefile="cookies.txt"):
+    return {
+        "usenetrc": True,
+        "cookiefile": cookiefile,
+        "allow_multiple_video_streams": True,
+        "allow_multiple_audio_streams": True,
+        "noprogress": True,
+        "allow_playlist_files": True,
+        "overwrites": True,
+        "writethumbnail": True,
+        "trim_file_name": 220,
+        "ffmpeg_location": f"/bin/{BinConfig.FFMPEG_NAME}",
+        "concurrent_fragments": 8,
+        "impersonate": ImpersonateTarget.from_str("chrome"),
+        "socket_timeout": 30,
+        "downloader": {
+            "http": f"/bin/{BinConfig.ARIA2_NAME}",
+            "https": f"/bin/{BinConfig.ARIA2_NAME}",
+        },
+        "downloader_args": {
+            BinConfig.ARIA2_NAME: [
+                "-x16",
+                "-k1M",
+                "-s16",
+                "--max-tries=5",
+                "--retry-wait=3",
+            ],
+        },
+        "extractor_args": {
+            "youtubetab": {"skip": ["webpage"]},
+        },
+        "hls_use_mpegts": True,
+        "fragment_retries": 10,
+        "retries": 10,
+        "retry_sleep_functions": {
+            "http": lambda n: 3,
+            "fragment": lambda n: 3,
+            "file_access": lambda n: 3,
+            "extractor": lambda n: 3,
+        },
+    }
+
+
 class MyLogger:
     def __init__(self, obj, listener):
         self._obj = obj
@@ -60,48 +103,6 @@ class YoutubeDLHelper:
         self.is_playlist = False
         self.keep_thumb = False
         self.playlist_count = 0
-        self.opts = {
-            "progress_hooks": [self._on_download_progress],
-            "logger": MyLogger(self, self._listener),
-            "usenetrc": True,
-            "allow_multiple_video_streams": True,
-            "allow_multiple_audio_streams": True,
-            "noprogress": True,
-            "allow_playlist_files": True,
-            "overwrites": True,
-            "writethumbnail": True,
-            "trim_file_name": 220,
-            "ffmpeg_location": f"/bin/{BinConfig.FFMPEG_NAME}",
-            "concurrent_fragments": 8,
-            "impersonate": ImpersonateTarget.from_str("chrome"),
-            "socket_timeout": 30,
-            "downloader": {
-                "http": f"/bin/{BinConfig.ARIA2_NAME}",
-                "https": f"/bin/{BinConfig.ARIA2_NAME}",
-            },
-            "downloader_args": {
-                BinConfig.ARIA2_NAME: [
-                    "-x16", "-k1M", "-s16",
-                    "--max-tries=5", "--retry-wait=3",
-                ],
-            },
-            "extractor_args": {
-                "youtube": {
-                    "player_client": ["mweb"],
-                    "skip": ["webpage", "configs"],
-                },
-                "youtubetab": {"skip": ["webpage"]},
-            },
-            "hls_use_mpegts": True,
-            "fragment_retries": 10,
-            "retries": 10,
-            "retry_sleep_functions": {
-                "http": lambda n: 3,
-                "fragment": lambda n: 3,
-                "file_access": lambda n: 3,
-                "extractor": lambda n: 3,
-            },
-        }
         cookie_to_use = (
             usr_cookie
             if not self._listener.user_dict.get("USE_DEFAULT_COOKIE", False)
@@ -109,7 +110,13 @@ class YoutubeDLHelper:
             and ospath.exists(usr_cookie)
             else "cookies.txt"
         )
-        self.opts["cookiefile"] = cookie_to_use
+        self.opts = get_base_ytdlp_options(cookie_to_use)
+        self.opts.update(
+            {
+                "progress_hooks": [self._on_download_progress],
+                "logger": MyLogger(self, self._listener),
+            }
+        )
         LOGGER.info(
             f"Using cookies.txt file: {cookie_to_use} | User ID : {self._listener.user_id}"
         )
