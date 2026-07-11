@@ -279,13 +279,6 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         else:
             tstatus = task.status()
         msg += f"<b>{index}.</b>\n"
-        msg += build_rich_table(
-            [["File Name", f"<b>{escape(f'{task.name()}')}</b>"]]
-        )
-        if task.listener.subname:
-            msg += "\n" + build_rich_table(
-                [["Sub Name", f"<b>{escape(task.listener.subname)}</b>"]]
-            )
         elapsed = time() - task.listener.message.date.timestamp()
 
         user = task.listener.message.from_user
@@ -293,7 +286,17 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         task_by += f" <code>(#ID{user.id})</code>"
         if task.listener.is_super_chat:
             task_by += f" <a href='{task.listener.message.link}'>[Link]</a>"
-        msg += "\n" + build_rich_table([["Task By", task_by]])
+        task_identity_rows = [
+            ["File Name", f"<b>{escape(f'{task.name()}')}</b>"],
+            ["Task By", task_by],
+        ]
+        if task.listener.subname:
+            task_identity_rows.append(["Sub Name", f"<b>{escape(task.listener.subname)}</b>"])
+        msg += build_rich_table(task_identity_rows)
+
+        from ..telegram_helper.bot_commands import BotCommands
+
+        stop_command = f"<i>/{BotCommands.CancelTaskCommand[1]}_{task.gid()[:8]}</i>"
 
         if (
             tstatus not in [MirrorStatus.STATUS_SEED, MirrorStatus.STATUS_QUEUEUP]
@@ -310,11 +313,21 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             msg += "\n" + build_rich_table(
                 [[get_progress_bar_string(progress), f"<i>{progress}</i>"]]
             )
-            detail_table = build_rich_table(
+            progress_headers = ["Processed", "Stop"]
+            progress_values = [
+                f"<i>{task.processed_bytes()}{subsize} of {task.size()}{count}</i>",
+                stop_command,
+            ]
+            if (task.listener.is_torrent or task.listener.is_qbit) and not (
+                task.listener.is_nzb or task.listener.is_jd
+            ):
+                progress_headers.append("Select")
+                progress_values.append(f"/{BotCommands.SelectCommand[1]}_{task.gid()[:8]}")
+            msg += "\n" + build_rich_table([progress_headers, progress_values])
+            msg += "\n" + build_rich_table(
                 [
-                    ["Processed", "Status", "Speed", "Time"],
+                    ["Status", "Speed", "Time"],
                     [
-                        f"<i>{task.processed_bytes()}{subsize} of {task.size()}{count}</i>",
                         f"<i>{tstatus}</i>",
                         f"<i>{task.speed()}</i>",
                         f"<i>{task.eta()} of "
@@ -323,7 +336,6 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
                     ],
                 ]
             )
-            msg += "\n" + detail_table
         elif tstatus == MirrorStatus.STATUS_SEED:
             msg += "\n" + build_rich_table(
                 [
@@ -344,24 +356,12 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
                 [["Size", "Status"], [f"<i>{task.size()}</i>", f"<i>{tstatus}</i>"]]
             )
 
-        from ..telegram_helper.bot_commands import BotCommands
-
         action_headers = ["Engine", "In Mode", "Out Mode"]
         action_values = [
             f"<i>{task.engine}</i>",
             f"<i>{task.listener.mode[0]}</i>",
             f"<i>{task.listener.mode[1]}</i>",
         ]
-        if tstatus in [
-            MirrorStatus.STATUS_DOWNLOAD,
-            MirrorStatus.STATUS_PAUSED,
-            MirrorStatus.STATUS_QUEUEDL,
-        ] and (task.listener.is_torrent or task.listener.is_qbit):
-            if not task.listener.is_nzb and not task.listener.is_jd:
-                action_headers.append("Select")
-                action_values.append(f"/{BotCommands.SelectCommand[1]}_{task.gid()[:8]}")
-        action_headers.append("Stop")
-        action_values.append(f"<i>/{BotCommands.CancelTaskCommand[1]}_{task.gid()[:8]}</i>")
         msg += "\n" + build_rich_table([action_headers, action_values]) + "\n\n"
 
     if len(msg) == 0:
