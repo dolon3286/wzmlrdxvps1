@@ -435,7 +435,7 @@ class TaskListener(TaskConfig):
         ):
             await database.rm_complete_task(self.message.link)
         msg = build_rich_table(
-            [["File Name", f"<b><i>{escape(self.name)}</i></b>"]]
+            [["File Name", f"<b>{escape(self.name)}</b>"]]
         )
         msg += "\n" + build_rich_table(
             [
@@ -477,16 +477,16 @@ class TaskListener(TaskConfig):
             await send_message(self.message, user_message, button)
 
         elif self.is_leech:
-            extra_rows = [["Total Files", f"<i>{folders}</i>"]]
+            extra_rows = [["Total Files", f"<b>{folders}</b>"]]
             if mime_type != 0:
-                extra_rows.append(["Corrupted Files", f"<i>{mime_type}</i>"])
+                extra_rows.append(["Corrupted Files", f"<b>{mime_type}</b>"])
             extra_rows.append(["Task By", self.tag])
             msg += "\n" + build_rich_table(extra_rows) + "\n"
 
             if self.bot_pm:
                 pmsg = msg
                 pmsg += "\n" + build_rich_table(
-                    [["Action Performed", "<i>File(s) have been sent to User PM</i>"]]
+                    [["Action Performed", "<b>File(s) have been sent to User PM</b>"]]
                 )
                 if self.is_super_chat:
                     await send_message(self.message, pmsg)
@@ -515,10 +515,9 @@ class TaskListener(TaskConfig):
                 if fmsg != "":
                     await send_message(log_chat, msg + fmsg)
         else:
-            msg += f"\n{EM_13}\n{EM_14} <b>Type</b> → {mime_type}"
+            task_info_rows = [["Type", mime_type]]
             if mime_type == "Folder":
-                msg += f"\n{EM_15} <b>SubFolders</b> → {folders}"
-                msg += f"\n{EM_12} <b>Files</b> → {files}"
+                task_info_rows.extend([["SubFolders", folders], ["Files", files]])
 
             multi_link_msg = ""
             multi_links = []
@@ -588,9 +587,10 @@ class TaskListener(TaskConfig):
                 if not multi_link_msg and rclone_path:
                     msg += f"\n{EM_13}\n{EM_6} Path: <code>{rclone_path}</code>"
                 button = None
-            msg += "\n" + build_rich_table([["Task By", self.tag]]) + "\n"
+            task_info_rows.append(["Task By", self.tag])
+            msg += "\n" + build_rich_table(task_info_rows) + "\n"
             group_msg = msg + "\n" + build_rich_table(
-                [["Action Performed", "<i>Cloud link(s) have been sent to User PM</i>"]]
+                [["Action Performed", "<b>Cloud link(s) have been sent to User PM</b>"]]
             ) + "\n"
 
             if multi_link_msg:
