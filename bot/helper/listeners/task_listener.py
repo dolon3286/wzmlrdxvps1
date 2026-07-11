@@ -40,7 +40,11 @@ from ..ext_utils.files_utils import (
     move_and_merge,
 )
 from ..ext_utils.links_utils import is_gdrive_id
-from ..ext_utils.status_utils import get_readable_file_size, get_readable_time
+from ..ext_utils.status_utils import (
+    build_html_table,
+    get_readable_file_size,
+    get_readable_time,
+)
 from ..ext_utils.task_manager import check_running_tasks, start_from_queued
 from ..mirror_leech_utils.uphoster_utils.multi_upload import MultiUphosterUpload
 from ..mirror_leech_utils.gdrive_utils.upload import GoogleDriveUpload
@@ -431,11 +435,20 @@ class TaskListener(TaskConfig):
         ):
             await database.rm_complete_task(self.message.link)
         msg = (
-            f"<b><i>{escape(self.name)}</i></b>\n{EM_13}"
-            f"\n{EM_2} <b>Task Size</b> → {get_readable_file_size(self.size)}"
-            f"\n{EM_4} <b>Time Taken</b> → {get_readable_time(time() - self.message.date.timestamp())}"
-            f"\n{EM_7} <b>In Mode</b> → {self.mode[0]}"
-            f"\n{EM_8} <b>Out Mode</b> → {self.mode[1]}"
+            f"<b><i>{escape(self.name)}</i></b>\n{EM_13}\n"
+            + build_html_table(
+                ["Field", "Value"],
+                [
+                    ["Task Size", get_readable_file_size(self.size)],
+                    [
+                        "Time Taken",
+                        get_readable_time(time() - self.message.date.timestamp()),
+                    ],
+                    ["In Mode", self.mode[0]],
+                    ["Out Mode", self.mode[1]],
+                ],
+                "Task Completed",
+            )
         )
         LOGGER.info(f"Task Done: {self.name}")
         if self.is_yt:

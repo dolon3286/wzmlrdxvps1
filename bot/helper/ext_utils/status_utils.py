@@ -195,6 +195,29 @@ def speed_string_to_bytes(size_text: str):
     return size
 
 
+
+def build_html_table(headers, rows, title=None):
+    """Build a Telegram-friendly rich table using escaped monospace HTML."""
+    table_rows = [headers, *rows]
+    widths = [
+        max(len(str(row[index])) for row in table_rows)
+        for index in range(len(headers))
+    ]
+
+    def format_row(row):
+        return "│ " + " │ ".join(
+            str(cell).ljust(widths[index]) for index, cell in enumerate(row)
+        ) + " │"
+
+    top = "┌" + "┬".join("─" * (width + 2) for width in widths) + "┐"
+    sep = "├" + "┼".join("─" * (width + 2) for width in widths) + "┤"
+    bottom = "└" + "┴".join("─" * (width + 2) for width in widths) + "┘"
+    lines = [top, format_row(headers), sep]
+    lines.extend(format_row(row) for row in rows)
+    lines.append(bottom)
+    table = f"<pre>{escape(chr(10).join(lines))}</pre>"
+    return f"<b>{escape(title)}</b>\n{table}" if title else table
+
 def get_progress_bar_string(pct):
     pct = float(str(pct).strip("%"))
     p = min(max(pct, 0), 100)
@@ -340,6 +363,19 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         "♻️ Refresh", f"status {sid} ref", position="header", style=ButtonStyle.PRIMARY
     )
     button = buttons.build_menu(8)
-    msg += f"\n{EM_10} <b>CPU</b> → {cpu_percent()}% | <b>F</b> → {get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)} [{round(100 - disk_usage(DOWNLOAD_DIR).percent, 1)}%]"
-    msg += f"\n{EM_11} <b>RAM</b> → {virtual_memory().percent}% | <b>UP</b> → {get_readable_time(time() - bot_start_time)}"
+    disk = disk_usage(DOWNLOAD_DIR)
+    stats_table = build_html_table(
+        ["Metric", "Value", "Extra"],
+        [
+            ["CPU", f"{cpu_percent()}%", ""],
+            [
+                "Free",
+                get_readable_file_size(disk.free),
+                f"{round(100 - disk.percent, 1)}%",
+            ],
+            ["RAM", f"{virtual_memory().percent}%", ""],
+            ["Uptime", get_readable_time(time() - bot_start_time), ""],
+        ],
+    )
+    msg += f"\n{stats_table}"
     return msg, button
