@@ -434,20 +434,19 @@ class TaskListener(TaskConfig):
             and Config.DATABASE_URL
         ):
             await database.rm_complete_task(self.message.link)
-        msg = (
-            f"<b><i>{escape(self.name)}</i></b>\n{EM_13}\n"
-            + build_rich_table(
+        msg = build_rich_table(
+            [["File Name", f"<b><i>{escape(self.name)}</i></b>"]]
+        )
+        msg += "\n" + build_rich_table(
+            [
+                ["Task Size", "Time Taken", "In Mode", "Out Mode"],
                 [
-                    ["Task Size", f"<i>{get_readable_file_size(self.size)}</i>"],
-                    [
-                        "Time Taken",
-                        f"<i>{get_readable_time(time() - self.message.date.timestamp())}</i>",
-                    ],
-                    ["In Mode", f"<i>{self.mode[0]}</i>"],
-                    ["Out Mode", f"<i>{self.mode[1]}</i>"],
+                    f"<i>{get_readable_file_size(self.size)}</i>",
+                    f"<i>{get_readable_time(time() - self.message.date.timestamp())}</i>",
+                    f"<i>{self.mode[0]}</i>",
+                    f"<i>{self.mode[1]}</i>",
                 ],
-                "Task Completed",
-            )
+            ]
         )
         LOGGER.info(f"Task Done: {self.name}")
         if self.is_yt:
@@ -478,15 +477,17 @@ class TaskListener(TaskConfig):
             await send_message(self.message, user_message, button)
 
         elif self.is_leech:
-            msg += f"\n<b>{EM_3}Total Files: </b>{folders}"
+            extra_rows = [["Total Files", f"<i>{folders}</i>"]]
             if mime_type != 0:
-                msg += f"\n{EM_12} <b>Corrupted Files</b> → {mime_type}"
-            msg += f"\n{EM_16} <b>Task By</b> → {self.tag}\n\n"
+                extra_rows.append(["Corrupted Files", f"<i>{mime_type}</i>"])
+            extra_rows.append(["Task By", self.tag])
+            msg += "\n" + build_rich_table(extra_rows) + "\n"
 
             if self.bot_pm:
                 pmsg = msg
-                pmsg += f"{EM_13} <b><u>Action Performed :</u></b>\n"
-                pmsg += f"{EM_4} <i>File(s) have been sent to User PM</i>\n\n"
+                pmsg += "\n" + build_rich_table(
+                    [["Action Performed", "<i>File(s) have been sent to User PM</i>"]]
+                )
                 if self.is_super_chat:
                     await send_message(self.message, pmsg)
 
@@ -587,11 +588,10 @@ class TaskListener(TaskConfig):
                 if not multi_link_msg and rclone_path:
                     msg += f"\n{EM_13}\n{EM_6} Path: <code>{rclone_path}</code>"
                 button = None
-            msg += f"\n{EM_13}\n{EM_16} <b>Task By</b> → {self.tag}\n\n"
-            group_msg = (
-                msg + f"{EM_13} <b><u>Action Performed :</u></b>\n"
-                f"{EM_11} <i>Cloud link(s) have been sent to User PM</i>\n\n"
-            )
+            msg += "\n" + build_rich_table([["Task By", self.tag]]) + "\n"
+            group_msg = msg + "\n" + build_rich_table(
+                [["Action Performed", "<i>Cloud link(s) have been sent to User PM</i>"]]
+            ) + "\n"
 
             if multi_link_msg:
                 group_msg += multi_link_msg + "\n"
