@@ -202,8 +202,8 @@ def build_rich_table(rows, title=None):
         table += f'<caption>{title}</caption>'
     for row in rows:
         label = escape(str(row[0]))
-        value = str(row[1]) if len(row) > 1 else ""
-        table += f'<tr><th align="left">{label}</th><td>{value}</td></tr>'
+        cells = "".join(f"<td>{cell}</td>" for cell in row[1:])
+        table += f'<tr><th align="left">{label}</th>{cells}</tr>'
     table += '</table>'
     return table
 
@@ -268,14 +268,14 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         msg += build_rich_table(file_rows, f"Task {index + start_position}")
         elapsed = time() - task.listener.message.date.timestamp()
 
-        task_by = (
-            f"<code>{task.listener.message.from_user.mention(style='html')}</code> "
-            f"(#ID{task.listener.message.from_user.id})"
-        )
+        user = task.listener.message.from_user
+        task_by = f"<code>{escape(user.first_name or user.username or str(user.id))}</code>"
+        task_by += f" <code>(#ID{user.id})</code>"
         if task.listener.is_super_chat:
-            task_by += f" <i>[<a href='{task.listener.message.link}'>Link</a>]</i>"
+            task_by += f" <a href='{task.listener.message.link}'>[Link]</a>"
         msg += "\n" + build_rich_table([["Task By", task_by]])
 
+        detail_rows = []
         if (
             tstatus not in [MirrorStatus.STATUS_SEED, MirrorStatus.STATUS_QUEUEUP]
             and task.listener.progress
@@ -284,23 +284,18 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             if task.listener.subname:
                 subsize = f" / {get_readable_file_size(task.listener.subsize)}"
                 ac = len(task.listener.files_to_proceed)
-                count = f"( {task.listener.proceed_count} / {ac or '?'} )"
+                count = f" ( {task.listener.proceed_count} / {ac or '?'} )"
             else:
                 subsize = ""
                 count = ""
             msg += "\n" + build_rich_table(
-                [
-                    [
-                        "Progress",
-                        f"{get_progress_bar_string(progress)} <i>{progress}</i>",
-                    ]
-                ],
+                [["Progress", get_progress_bar_string(progress), f"<i>{progress}</i>"]],
                 "Progress",
             )
             detail_rows = [
                 [
                     "Processed",
-                    f"<i>{task.processed_bytes()}{subsize} of {task.size()}</i>",
+                    f"<i>{task.processed_bytes()}{subsize} of {task.size()}{count}</i>",
                 ],
                 ["Status", f"<b>{tstatus}</b>"],
                 ["Speed", f"<i>{task.speed()}</i>"],
@@ -311,39 +306,61 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
                     f"( {get_readable_time(elapsed)} )</i>",
                 ],
             ]
-            if count:
-                detail_rows.insert(1, ["Count", f"<b>{count}</b>"])
-            msg += "\n" + build_rich_table(detail_rows, "Task Details")
             if tstatus == MirrorStatus.STATUS_DOWNLOAD and (
                 task.listener.is_torrent or task.listener.is_qbit
             ):
                 try:
-                    msg += f"\n{EM_2} <b>Seeders</b> → {task.seeders_num()} | <b>Leechers</b> → {task.leechers_num()}"
+                    detail_rows.extend(
+                        [
+                            ["Seeders", f"<i>{task.seeders_num()}</i>"],
+                            ["Leechers", f"<i>{task.leechers_num()}</i>"],
+                        ]
+                    )
                 except Exception:
                     pass
             # TODO: Add Connected Peers
         elif tstatus == MirrorStatus.STATUS_SEED:
-            msg += f"\n{EM_6} <b>Size</b> → <i>{task.size()}</i> | <b>Uploaded</b>  → <i>{task.uploaded_bytes()}</i>"
-            msg += f"\n{EM_3} <b>Status</b> → <b>{tstatus}</b>"
-            msg += f"\n{EM_4} <b>Speed</b> → <i>{task.seed_speed()}</i>"
-            msg += f"\n{EM_1} <b>Ratio</b> → <i>{task.ratio()}</i>"
-            msg += f"\n{EM_5} <b>Time</b> → <i>{task.seeding_time()}</i> | <b>Elapsed</b> → <i>{get_readable_time(elapsed)}</i>"
+            detail_rows = [
+                ["Size", f"<i>{task.size()}</i>"],
+                ["Uploaded", f"<i>{task.uploaded_bytes()}</i>"],
+                ["Status", f"<b>{tstatus}</b>"],
+                ["Speed", f"<i>{task.seed_speed()}</i>"],
+                ["Ratio", f"<i>{task.ratio()}</i>"],
+                [
+                    "Time",
+                    f"<i>{task.seeding_time()} | Elapsed {get_readable_time(elapsed)}</i>",
+                ],
+            ]
         else:
-            msg += f"\n{EM_6} <b>Size</b> → <i>{task.size()}</i>"
-        msg += f"\n{EM_13} <b>Engine</b> → <i>{task.engine}</i>"
-        msg += f"\n{EM_7} <b>In Mode</b> → <i>{task.listener.mode[0]}</i>"
-        msg += f"\n{EM_8} <b>Out Mode</b> → <i>{task.listener.mode[1]}</i>"
+            detail_rows = [["Size", f"<i>{task.size()}</i>"], ["Status", f"<b>{tstatus}</b>"]]
+        msg += "\n" + build_rich_table(detail_rows, "Task Details")
+
         from ..telegram_helper.bot_commands import BotCommands
 
+        action_rows = [
+            ["Engine", f"<i>{task.engine}</i>"],
+            ["In Mode", f"<i>{task.listener.mode[0]}</i>"],
+            ["Out Mode", f"<i>{task.listener.mode[1]}</i>"],
+        ]
         if tstatus in [
             MirrorStatus.STATUS_DOWNLOAD,
             MirrorStatus.STATUS_PAUSED,
             MirrorStatus.STATUS_QUEUEDL,
         ]:
             if not task.listener.is_nzb and not task.listener.is_jd:
-                msg += f"\n{EM_2} <b>Select</b> → /{BotCommands.SelectCommand[1]}_{task.gid()[:8]}"
-
-        msg += f"\n{EM_9} <b>Stop</b> → <i>/{BotCommands.CancelTaskCommand[1]}_{task.gid()[:8]}</i>\n\n"
+                action_rows.append(
+                    [
+                        "Select",
+                        f"/{BotCommands.SelectCommand[1]}_{task.gid()[:8]}",
+                    ]
+                )
+        action_rows.append(
+            [
+                "Stop",
+                f"/{BotCommands.CancelTaskCommand[1]}_{task.gid()[:8]}",
+            ]
+        )
+        msg += "\n" + build_rich_table(action_rows, "Task Actions") + "\n\n"
 
     if len(msg) == 0:
         if status == "All":
