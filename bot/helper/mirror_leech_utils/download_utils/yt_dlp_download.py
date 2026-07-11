@@ -213,15 +213,34 @@ class YoutubeDLHelper:
                 if not self._ext:
                     self._ext = ext
 
+    @staticmethod
+    def _is_embed_thumbnail_error(error):
+        error = str(error).lower()
+        return (
+            (
+                "postprocessing" in error
+                and "embed" in error
+                and "thumbnail" in error
+            )
+            or "unable to embed using ffprobe & ffmpeg" in error
+        )
+
     def _download(self, path):
         with suppress(Exception):
             with YoutubeDL(self.opts) as ydl:
                 try:
                     ydl.download([self._listener.link])
                 except DownloadError as e:
-                    if not self._listener.is_cancelled:
+                    if self._listener.is_cancelled:
+                        return
+                    if self._is_embed_thumbnail_error(e):
+                        LOGGER.warning(
+                            "Ignoring failed yt-dlp thumbnail embedding after download: %s",
+                            e,
+                        )
+                    else:
                         self._on_download_error(str(e))
-                    return
+                        return
             if self.is_playlist and (
                 not ospath.exists(path) or len(listdir(path)) == 0
             ):
