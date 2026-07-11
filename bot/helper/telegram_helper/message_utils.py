@@ -3,6 +3,7 @@ from random import choice
 from re import match as re_match
 from time import time
 
+from aiohttp import ClientSession
 from pyrogram.types import Message, InputMediaPhoto
 from pyrogram.enums import ButtonStyle, ParseMode
 from pyrogram.errors import (
@@ -33,8 +34,97 @@ from ..ext_utils.status_utils import get_readable_message
 from .button_build import ButtonMaker
 
 
+class RichMessageProxy:
+    def __init__(self, chat_id, message_id, text):
+        self.chat = type("Chat", (), {"id": chat_id})()
+        self.id = message_id
+        self.text = text
+        self.media = False
+
+    async def delete(self):
+        return await TgClient.bot.delete_messages(self.chat.id, self.id)
+
+
+def _button_to_dict(button):
+    data = {"text": button.text}
+    if getattr(button, "url", None):
+        data["url"] = button.url
+    if getattr(button, "callback_data", None):
+        data["callback_data"] = button.callback_data
+    return data
+
+
+def _reply_markup_to_dict(buttons):
+    if not buttons:
+        return None
+    return {
+        "inline_keyboard": [
+            [_button_to_dict(button) for button in row]
+            for row in buttons.inline_keyboard
+        ]
+    }
+
+
+def _message_chat_id(message):
+    return message.chat.id if isinstance(message, Message) else int(message)
+
+
+def _message_thread_id(message):
+    if not isinstance(message, Message):
+        return None
+    return getattr(message, "message_thread_id", None)
+
+
+def _is_rich_message(text):
+    return "<table" in text or "<h" in text or "<details" in text
+
+
+async def _bot_api_request(method, payload):
+    url = f"https://api.telegram.org/bot{Config.BOT_TOKEN}/{method}"
+    async with ClientSession() as session:
+        async with session.post(url, json=payload) as response:
+            result = await response.json()
+    if not result.get("ok"):
+        raise RuntimeError(result.get("description", result))
+    return result["result"]
+
+
+async def send_rich_message(message, text, buttons=None, **kwargs):
+    payload = {
+        "chat_id": _message_chat_id(message),
+        "rich_message": {"html": text},
+        "disable_notification": True,
+    }
+    if isinstance(message, Message):
+        payload["reply_parameters"] = {"message_id": message.id}
+    if thread_id := _message_thread_id(message):
+        payload["message_thread_id"] = thread_id
+    if reply_markup := _reply_markup_to_dict(buttons):
+        payload["reply_markup"] = reply_markup
+    payload.update(kwargs)
+    sent = await _bot_api_request("sendRichMessage", payload)
+    return RichMessageProxy(sent["chat"]["id"], sent["message_id"], text)
+
+
+async def edit_rich_message(message, text, buttons=None):
+    payload = {
+        "chat_id": message.chat.id,
+        "message_id": message.id,
+        "rich_message": {"html": text},
+    }
+    if reply_markup := _reply_markup_to_dict(buttons):
+        payload["reply_markup"] = reply_markup
+    edited = await _bot_api_request("editMessageText", payload)
+    return RichMessageProxy(edited["chat"]["id"], edited["message_id"], text)
+
+
 async def send_message(message, text, buttons=None, block=True, photo=None, **kwargs):
     try:
+        if _is_rich_message(text) and not photo:
+            try:
+                return await send_rich_message(message, text, buttons, **kwargs)
+            except Exception:
+                LOGGER.error("Error while sending rich message", exc_info=True)
         if photo:
             try:
                 if photo == "IMAGES":
@@ -151,6 +241,11 @@ async def send_message(message, text, buttons=None, block=True, photo=None, **kw
 
 async def edit_message(message, text, buttons=None, block=True, photo=None):
     try:
+        if _is_rich_message(text) and not photo:
+            try:
+                return await edit_rich_message(message, text, buttons)
+            except Exception:
+                LOGGER.error("Error while editing rich message", exc_info=True)
         if message.media:
             if photo:
                 if photo == "IMAGES":
