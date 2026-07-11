@@ -1,6 +1,6 @@
 from asyncio import sleep, gather
 from random import choice
-from re import match as re_match
+from re import match as re_match, sub as re_sub
 from time import time
 
 from aiohttp import ClientSession
@@ -79,6 +79,19 @@ def _is_rich_message(text):
     return "<table" in text or "<h" in text or "<details" in text
 
 
+def rich_to_plain_text(text):
+    replacements = {
+        "</caption>": "\n",
+        "</tr>": "\n",
+        "</th>": " → ",
+        "</td>": "",
+        "<br>": "\n",
+    }
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    return re_sub(r"<[^>]+>", "", text).strip()
+
+
 async def _bot_api_request(method, payload):
     url = f"https://api.telegram.org/bot{Config.BOT_TOKEN}/{method}"
     async with ClientSession() as session:
@@ -120,11 +133,23 @@ async def edit_rich_message(message, text, buttons=None):
 
 async def send_message(message, text, buttons=None, block=True, photo=None, **kwargs):
     try:
-        if _is_rich_message(text) and not photo:
+        if _is_rich_message(text):
+            photo = None
+        elif photo == "IMAGES" and not (Config.USE_IMAGES and Config.IMAGES):
+            photo = None
+        if _is_rich_message(text) and photo is None:
             try:
                 return await send_rich_message(message, text, buttons, **kwargs)
             except Exception:
                 LOGGER.error("Error while sending rich message", exc_info=True)
+                return await send_message(
+                    message,
+                    rich_to_plain_text(text),
+                    buttons,
+                    block,
+                    photo,
+                    **kwargs,
+                )
         if photo:
             try:
                 if photo == "IMAGES":
@@ -241,11 +266,18 @@ async def send_message(message, text, buttons=None, block=True, photo=None, **kw
 
 async def edit_message(message, text, buttons=None, block=True, photo=None):
     try:
-        if _is_rich_message(text) and not photo:
+        if _is_rich_message(text):
+            photo = None
+        elif photo == "IMAGES" and not (Config.USE_IMAGES and Config.IMAGES):
+            photo = None
+        if _is_rich_message(text) and photo is None:
             try:
                 return await edit_rich_message(message, text, buttons)
             except Exception:
                 LOGGER.error("Error while editing rich message", exc_info=True)
+                return await edit_message(
+                    message, rich_to_plain_text(text), buttons, block, photo
+                )
         if message.media:
             if photo:
                 if photo == "IMAGES":
@@ -357,7 +389,11 @@ async def send_rss(text, chat_id, thread_id):
 
 
 async def delete_message(*args):
-    tasks = [msg.delete() for msg in args if isinstance(msg, Message)]
+    tasks = [
+        msg.delete()
+        for msg in args
+        if isinstance(msg, Message) or isinstance(msg, RichMessageProxy)
+    ]
     if not tasks:
         return
     results = await gather(*tasks, return_exceptions=True)
