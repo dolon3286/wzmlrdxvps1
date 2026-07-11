@@ -195,17 +195,34 @@ def speed_string_to_bytes(size_text: str):
     return size
 
 
+BOLD_TABLE_TEXT = {
+    "Status",
+    "Speed",
+    "Time",
+    "In Mode",
+    "Out Mode",
+    "Stop",
+    "Free",
+    "RAM",
+    "Uptime",
+}
+
+
+def _format_table_text(text):
+    raw_text = str(text)
+    if raw_text in BOLD_TABLE_TEXT:
+        return f"<b>{escape(raw_text)}</b>"
+    return raw_text if raw_text.startswith("<") else escape(raw_text)
+
+
 def build_rich_table(rows, title=None):
     """Build a Bot API rich-message HTML table."""
     table = '<table bordered>'
     if title:
         table += f'<caption>{title}</caption>'
     for row in rows:
-        raw_label = str(row[0])
-        # Labels are normally escaped, but status widgets may intentionally pass
-        # trusted Bot API HTML (for example tg-emoji progress bars).
-        label = raw_label if raw_label.startswith("<") else escape(raw_label)
-        cells = "".join(f"<td>{cell}</td>" for cell in row[1:])
+        label = _format_table_text(row[0])
+        cells = "".join(f"<td>{_format_table_text(cell)}</td>" for cell in row[1:])
         table += f'<tr><th align="left">{label}</th>{cells}</tr>'
     table += '</table>'
     return table
@@ -261,6 +278,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             tstatus = await task.status()
         else:
             tstatus = task.status()
+        msg += f"<b>{index}.</b>\n"
         msg += build_rich_table(
             [["File Name", f"<b>{escape(f'{task.name()}')}</b>"]]
         )
@@ -290,18 +308,18 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
                 subsize = ""
                 count = ""
             msg += "\n" + build_rich_table(
-                [[get_progress_bar_string(progress), f"<b>{progress}</b>"]]
+                [[get_progress_bar_string(progress), f"<i>{progress}</i>"]]
             )
             detail_table = build_rich_table(
                 [
                     ["Processed", "Status", "Speed", "Time"],
                     [
-                        f"<b>{task.processed_bytes()}{subsize} of {task.size()}{count}</b>",
-                        f"<b>{tstatus}</b>",
-                        f"<b>{task.speed()}</b>",
-                        f"<b>{task.eta()} of "
+                        f"<i>{task.processed_bytes()}{subsize} of {task.size()}{count}</i>",
+                        f"<i>{tstatus}</i>",
+                        f"<i>{task.speed()}</i>",
+                        f"<i>{task.eta()} of "
                         f"{get_readable_time(elapsed + get_raw_time(task.eta()))} "
-                        f"( {get_readable_time(elapsed)} )</b>",
+                        f"( {get_readable_time(elapsed)} )</i>",
                     ],
                 ]
             )
@@ -311,28 +329,28 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
                 [
                     ["Size", "Uploaded", "Status", "Speed", "Ratio", "Time"],
                     [
-                        f"<b>{task.size()}</b>",
-                        f"<b>{task.uploaded_bytes()}</b>",
-                        f"<b>{tstatus}</b>",
-                        f"<b>{task.seed_speed()}</b>",
-                        f"<b>{task.ratio()}</b>",
-                        f"<b>{task.seeding_time()} | "
-                        f"Elapsed {get_readable_time(elapsed)}</b>",
+                        f"<i>{task.size()}</i>",
+                        f"<i>{task.uploaded_bytes()}</i>",
+                        f"<i>{tstatus}</i>",
+                        f"<i>{task.seed_speed()}</i>",
+                        f"<i>{task.ratio()}</i>",
+                        f"<i>{task.seeding_time()} | "
+                        f"Elapsed {get_readable_time(elapsed)}</i>",
                     ],
                 ]
             )
         else:
             msg += "\n" + build_rich_table(
-                [["Size", "Status"], [f"<b>{task.size()}</b>", f"<b>{tstatus}</b>"]]
+                [["Size", "Status"], [f"<i>{task.size()}</i>", f"<i>{tstatus}</i>"]]
             )
 
         from ..telegram_helper.bot_commands import BotCommands
 
         action_headers = ["Engine", "In Mode", "Out Mode"]
         action_values = [
-            f"<b>{task.engine}</b>",
-            f"<b>{task.listener.mode[0]}</b>",
-            f"<b>{task.listener.mode[1]}</b>",
+            f"<i>{task.engine}</i>",
+            f"<i>{task.listener.mode[0]}</i>",
+            f"<i>{task.listener.mode[1]}</i>",
         ]
         if tstatus in [
             MirrorStatus.STATUS_DOWNLOAD,
@@ -343,7 +361,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
                 action_headers.append("Select")
                 action_values.append(f"/{BotCommands.SelectCommand[1]}_{task.gid()[:8]}")
         action_headers.append("Stop")
-        action_values.append(f"<b>/{BotCommands.CancelTaskCommand[1]}_{task.gid()[:8]}</b>")
+        action_values.append(f"<i>/{BotCommands.CancelTaskCommand[1]}_{task.gid()[:8]}</i>")
         msg += "\n" + build_rich_table([action_headers, action_values]) + "\n\n"
 
     if len(msg) == 0:
@@ -381,11 +399,11 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         [
             ["CPU", "Free", "RAM", "Uptime"],
             [
-                f"<b>{cpu_percent()}%</b>",
-                f"<b>{get_readable_file_size(disk.free)}</b> "
+                f"<i>{cpu_percent()}%</i>",
+                f"<i>{get_readable_file_size(disk.free)}</i> "
                 f"(<b>{round(100 - disk.percent, 1)}%</b>)",
-                f"<b>{virtual_memory().percent}%</b>",
-                f"<b>{get_readable_time(time() - bot_start_time)}</b>",
+                f"<i>{virtual_memory().percent}%</i>",
+                f"<i>{get_readable_time(time() - bot_start_time)}</i>",
             ],
         ]
     )

@@ -441,10 +441,10 @@ class TaskListener(TaskConfig):
             [
                 ["Task Size", "Time Taken", "In Mode", "Out Mode"],
                 [
-                    f"<b>{get_readable_file_size(self.size)}</b>",
-                    f"<b>{get_readable_time(time() - self.message.date.timestamp())}</b>",
-                    f"<b>{self.mode[0]}</b>",
-                    f"<b>{self.mode[1]}</b>",
+                    f"<i>{get_readable_file_size(self.size)}</i>",
+                    f"<i>{get_readable_time(time() - self.message.date.timestamp())}</i>",
+                    f"<i>{self.mode[0]}</i>",
+                    f"<i>{self.mode[1]}</i>",
                 ],
             ]
         )
