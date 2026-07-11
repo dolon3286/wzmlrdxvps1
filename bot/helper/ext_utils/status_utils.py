@@ -1,7 +1,7 @@
 from asyncio import gather, iscoroutinefunction
 from html import escape
 from pyrogram.enums import ButtonStyle
-from re import findall
+from re import findall, sub
 from time import time
 
 from psutil import cpu_percent, disk_usage, virtual_memory
@@ -196,17 +196,27 @@ def speed_string_to_bytes(size_text: str):
 
 
 def build_rich_table(rows, title=None):
-    """Build a Telegram-rich table using blockquote sections, not code blocks."""
-    lines = []
+    """Build a Telegram-friendly visual table without code or quote blocks."""
+    clean_rows = [[str(row[0]), str(row[1]) if len(row) > 1 else ""] for row in rows]
+    label_width = max([len(row[0]) for row in clean_rows] + [7])
+    value_width = min(max([len(strip_html(row[1])) for row in clean_rows] + [5]), 48)
+    border = "─"
+    top = "╭" + border * (label_width + 2) + "┬" + border * (value_width + 2) + "╮"
+    sep = "├" + border * (label_width + 2) + "┼" + border * (value_width + 2) + "┤"
+    bottom = "╰" + border * (label_width + 2) + "┴" + border * (value_width + 2) + "╯"
+    lines = [top]
     if title:
-        lines.append(f"<b>{title}</b>")
-    for row in rows:
-        if len(row) == 1:
-            lines.append(escape(str(row[0])))
-        else:
-            label, value = row[0], row[1]
-            lines.append(f"<b>{escape(str(label))}</b> → {value}")
-    return f"<blockquote>{chr(10).join(lines)}</blockquote>"
+        lines.append(f"│ <b>{title}</b>".ljust(label_width + value_width + 6) + "│")
+        lines.append(sep)
+    for label, value in clean_rows:
+        lines.append(f"│ <b>{escape(label).ljust(label_width)}</b> │ {value} │")
+    lines.append(bottom)
+    return "\n".join(lines)
+
+
+def strip_html(text):
+    """Best-effort length helper for Telegram HTML snippets."""
+    return sub(r"<[^>]*>", "", str(text))
 
 def get_progress_bar_string(pct):
     pct = float(str(pct).strip("%"))
