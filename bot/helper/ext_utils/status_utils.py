@@ -195,28 +195,18 @@ def speed_string_to_bytes(size_text: str):
     return size
 
 
-
-def build_html_table(headers, rows, title=None):
-    """Build a Telegram-friendly rich table using escaped monospace HTML."""
-    table_rows = [headers, *rows]
-    widths = [
-        max(len(str(row[index])) for row in table_rows)
-        for index in range(len(headers))
-    ]
-
-    def format_row(row):
-        return "│ " + " │ ".join(
-            str(cell).ljust(widths[index]) for index, cell in enumerate(row)
-        ) + " │"
-
-    top = "┌" + "┬".join("─" * (width + 2) for width in widths) + "┐"
-    sep = "├" + "┼".join("─" * (width + 2) for width in widths) + "┤"
-    bottom = "└" + "┴".join("─" * (width + 2) for width in widths) + "┘"
-    lines = [top, format_row(headers), sep]
-    lines.extend(format_row(row) for row in rows)
-    lines.append(bottom)
-    table = f"<pre>{escape(chr(10).join(lines))}</pre>"
-    return f"<b>{escape(title)}</b>\n{table}" if title else table
+def build_rich_table(rows, title=None):
+    """Build a Telegram-rich table using blockquote sections, not code blocks."""
+    lines = []
+    if title:
+        lines.append(f"<b>{title}</b>")
+    for row in rows:
+        if len(row) == 1:
+            lines.append(escape(str(row[0])))
+        else:
+            label, value = row[0], row[1]
+            lines.append(f"<b>{escape(str(label))}</b> → {value}")
+    return f"<blockquote>{chr(10).join(lines)}</blockquote>"
 
 def get_progress_bar_string(pct):
     pct = float(str(pct).strip("%"))
@@ -273,22 +263,25 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             tstatus = await task.status()
         else:
             tstatus = task.status()
-        msg += f"<b>{index + start_position}.</b> "
-        msg += f"<b><i>{escape(f'{task.name()}')}</i></b>"
+        file_rows = [["File Name", f"<b><i>{escape(f'{task.name()}')}</i></b>"]]
         if task.listener.subname:
-            msg += f"\n┖ <b>Sub Name</b> → <i>{task.listener.subname}</i>"
+            file_rows.append(["Sub Name", f"<i>{escape(task.listener.subname)}</i>"])
+        msg += build_rich_table(file_rows, f"Task {index + start_position}")
         elapsed = time() - task.listener.message.date.timestamp()
 
-        msg += f"\n\n<b>Task By <code>{task.listener.message.from_user.mention(style='html')}</code> </b> ( #ID{task.listener.message.from_user.id} )"
+        task_by = (
+            f"<code>{task.listener.message.from_user.mention(style='html')}</code> "
+            f"(#ID{task.listener.message.from_user.id})"
+        )
         if task.listener.is_super_chat:
-            msg += f" <i>[<a href='{task.listener.message.link}'>Link</a>]</i>"
+            task_by += f" <i>[<a href='{task.listener.message.link}'>Link</a>]</i>"
+        msg += "\n" + build_rich_table([["Task By", task_by]])
 
         if (
             tstatus not in [MirrorStatus.STATUS_SEED, MirrorStatus.STATUS_QUEUEUP]
             and task.listener.progress
         ):
             progress = task.progress()
-            msg += f"\n{EM_1} {get_progress_bar_string(progress)} <i>{progress}</i>"
             if task.listener.subname:
                 subsize = f" / {get_readable_file_size(task.listener.subsize)}"
                 ac = len(task.listener.files_to_proceed)
@@ -296,12 +289,32 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             else:
                 subsize = ""
                 count = ""
-            msg += f"\n{EM_2} <b>Processed</b> → <i>{task.processed_bytes()}{subsize} of {task.size()}</i>"
+            msg += "\n" + build_rich_table(
+                [
+                    [
+                        "Progress",
+                        f"{get_progress_bar_string(progress)} <i>{progress}</i>",
+                    ]
+                ],
+                "Progress",
+            )
+            detail_rows = [
+                [
+                    "Processed",
+                    f"<i>{task.processed_bytes()}{subsize} of {task.size()}</i>",
+                ],
+                ["Status", f"<b>{tstatus}</b>"],
+                ["Speed", f"<i>{task.speed()}</i>"],
+                [
+                    "Time",
+                    f"<i>{task.eta()} of "
+                    f"{get_readable_time(elapsed + get_raw_time(task.eta()))} "
+                    f"( {get_readable_time(elapsed)} )</i>",
+                ],
+            ]
             if count:
-                msg += f"\n{EM_4} <b>Count:</b> → <b>{count}</b>"
-            msg += f"\n{EM_3} <b>Status</b> → <b>{tstatus}</b>"
-            msg += f"\n{EM_4} <b>Speed</b> → <i>{task.speed()}</i>"
-            msg += f"\n{EM_5} <b>Time</b> → <i>{task.eta()} of {get_readable_time(elapsed + get_raw_time(task.eta()))} ( {get_readable_time(elapsed)} )</i>"
+                detail_rows.insert(1, ["Count", f"<b>{count}</b>"])
+            msg += "\n" + build_rich_table(detail_rows, "Task Details")
             if tstatus == MirrorStatus.STATUS_DOWNLOAD and (
                 task.listener.is_torrent or task.listener.is_qbit
             ):
@@ -364,18 +377,18 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
     )
     button = buttons.build_menu(8)
     disk = disk_usage(DOWNLOAD_DIR)
-    stats_table = build_html_table(
-        ["Metric", "Value", "Extra"],
+    stats_table = build_rich_table(
         [
-            ["CPU", f"{cpu_percent()}%", ""],
+            ["CPU", f"<i>{cpu_percent()}%</i>"],
             [
                 "Free",
-                get_readable_file_size(disk.free),
-                f"{round(100 - disk.percent, 1)}%",
+                f"<i>{get_readable_file_size(disk.free)}</i> "
+                f"(<b>{round(100 - disk.percent, 1)}%</b>)",
             ],
-            ["RAM", f"{virtual_memory().percent}%", ""],
-            ["Uptime", get_readable_time(time() - bot_start_time), ""],
+            ["RAM", f"<i>{virtual_memory().percent}%</i>"],
+            ["Uptime", f"<i>{get_readable_time(time() - bot_start_time)}</i>"],
         ],
+        f"{EM_12} <u>Bot Stats</u>",
     )
     msg += f"\n{stats_table}"
     return msg, button

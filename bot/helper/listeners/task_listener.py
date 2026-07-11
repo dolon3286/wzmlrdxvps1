@@ -41,7 +41,7 @@ from ..ext_utils.files_utils import (
 )
 from ..ext_utils.links_utils import is_gdrive_id
 from ..ext_utils.status_utils import (
-    build_html_table,
+    build_rich_table,
     get_readable_file_size,
     get_readable_time,
 )
@@ -436,16 +436,15 @@ class TaskListener(TaskConfig):
             await database.rm_complete_task(self.message.link)
         msg = (
             f"<b><i>{escape(self.name)}</i></b>\n{EM_13}\n"
-            + build_html_table(
-                ["Field", "Value"],
+            + build_rich_table(
                 [
-                    ["Task Size", get_readable_file_size(self.size)],
+                    ["Task Size", f"<i>{get_readable_file_size(self.size)}</i>"],
                     [
                         "Time Taken",
-                        get_readable_time(time() - self.message.date.timestamp()),
+                        f"<i>{get_readable_time(time() - self.message.date.timestamp())}</i>",
                     ],
-                    ["In Mode", self.mode[0]],
-                    ["Out Mode", self.mode[1]],
+                    ["In Mode", f"<i>{self.mode[0]}</i>"],
+                    ["Out Mode", f"<i>{self.mode[1]}</i>"],
                 ],
                 "Task Completed",
             )
