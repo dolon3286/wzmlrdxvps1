@@ -491,14 +491,38 @@ def bunkr(url):
     root_dl = "https://get.bunkrr.su"
     endpoint = "https://apidl.bunkr.ru/api/_001_v2"
 
+    def _clean_url(c):
+        c = c.replace("\\/", "/").replace("&amp;", "&").strip()
+        if c.startswith("//"):
+            c = f"https:{c}"
+        return c
+
+    def _is_valid_media(c):
+        if not c.startswith(("http://", "https://")): return False
+        if "cdn-cgi" in c: return False
+        domain = urlparse(c).hostname or ""
+        path = urlparse(c).path.lower()
+        if not domain: return False
+        
+        # Ignore self-referential or navigational paths
+        if path.startswith(("/f/", "/v/", "/a/", "/file/", "/video/", "/album/", "/user/")):
+            return False
+        # Ignore web assets
+        if path.endswith((".js", ".css", ".svg", ".ico", ".json", ".webmanifest", ".woff2", ".txt")):
+            return False
+            
+        # Accept if it's a known bunkr CDN or ends with a media file extension
+        valid_exts = (".mp4", ".png", ".jpg", ".jpeg", ".zip", ".rar", ".7z", ".mkv", ".avi", ".gif", ".ts", ".webm")
+        if "bunkr" in domain or path.endswith(valid_exts):
+            return True
+        return False
+
     def _extract_between(text, start, end):
         start_index = text.find(start)
-        if start_index == -1:
-            return ""
+        if start_index == -1: return ""
         start_index += len(start)
         end_index = text.find(end, start_index)
-        if end_index == -1:
-            return ""
+        if end_index == -1: return ""
         return text[start_index:end_index]
 
     def _decrypt_xor(data, key):
@@ -513,65 +537,44 @@ def bunkr(url):
             return match_id.group(1)
         return ""
 
-    def _extract_media_url(page, original_url):
-        """Prefer the media URL rendered by Bunkr over its protected legacy API."""
+    def _extract_media_url(page):
         tree = HTML(page)
-        parsed_orig = urlparse(original_url)
+        # 1. Try high-confidence XPath first
+        xpaths = [
+            "//a[@id='download-btn']/@href",
+            "//a[contains(@class, 'download')]/@href",
+            "//video/@src", 
+            "//video/source/@src", 
+            "//source/@src", 
+            "//a[@download]/@href",
+            "//*[@data-src]/@data-src",
+            "//meta[@property='og:video']/@content",
+            "//meta[@property='og:image']/@content"
+        ]
+        for xp in xpaths:
+            for candidate in tree.xpath(xp):
+                c = _clean_url(candidate)
+                if _is_valid_media(c):
+                    return c
         
-        candidates = tree.xpath(
-            "//video/@src | //video/source/@src | //source/@src | "
-            "//a[@download]/@href | //*[@data-src]/@data-src | "
-            "//meta[@property='og:video']/@content"
-        )
-        candidates.extend(
-            findall(r'https?://[^"\'\\s<>]+', page.replace("\\/", "/"))
-        )
-        
-        valid_extensions = (".mp4", ".png", ".jpg", ".jpeg", ".zip", ".rar", ".7z", ".mkv", ".avi", ".gif", ".ts", ".webm")
-        
-        for candidate in candidates:
-            candidate = candidate.replace("\\/", "/").replace("&amp;", "&")
-            if candidate.startswith("//"):
-                candidate = f"https:{candidate}"
-            candidate_domain = urlparse(candidate).hostname or ""
-            
-            if (
-                candidate.startswith(("http://", "https://"))
-                and "." in candidate_domain
-                and "bunkr" in candidate_domain
-                and "cdn-cgi" not in candidate
-            ):
-                path = urlparse(candidate).path.lower()
-                # Skip navigational URLs and web assets
-                if path.startswith(("/f/", "/v/", "/a/", "/file/", "/video/", "/album/", "/user/")):
-                    continue
-                if path.endswith((".js", ".css", ".svg", ".ico", ".json", ".webmanifest", ".woff2", ".txt")):
-                    continue
-                
-                # If domain is different from the main UI (meaning it's a CDN server) or ends with media file 
-                if candidate_domain != parsed_orig.hostname or path.endswith(valid_extensions):
-                    return candidate
+        # 2. Fallback to regex
+        for candidate in findall(r'https?://[^"\'\s<>]+', page.replace("\\/", "/")):
+            c = _clean_url(candidate)
+            if _is_valid_media(c):
+                return c
         return ""
 
-    def _download_headers(referer, session):
-        """Keep the Bunkr browser context when aria2 fetches the media URL."""
-        ua = session.headers.get("User-Agent") or user_agent
-        headers = [f"Referer: {referer}", f"User-Agent: {ua}"]
-        
-        try:
-            cookie_dict = session.cookies.get_dict()
-            cookies = "; ".join(f"{name}={value}" for name, value in cookie_dict.items())
-        except AttributeError:
-            # Fallback if curl_cffi cookies do not support get_dict directly on older versions
-            cookies = "; ".join(f"{c.name}={c.value}" for c in session.cookies.jar)
-            
-        if cookies:
-            headers.append(f"Cookie: {cookies}")
-        return headers
+    def _download_headers(referer):
+        # We strictly avoid sending __cf_clearance cookies to the CDN because 
+        # aiohttp/aria2 TLS fingerprint mismatch will trigger a 403 block.
+        # Just Referer and User-Agent are usually enough for Bunkr static files.
+        return [
+            f"Referer: {referer}",
+            f"User-Agent: {user_agent}"
+        ]
 
     def _json_unescape(value):
-        if not value:
-            return ""
+        if not value: return ""
         try:
             return loads(f'"{value}"')
         except Exception:
@@ -596,25 +599,25 @@ def bunkr(url):
         return file_url, referer
 
     try:
-        # Switch to CurlSession for better Cloudflare bypass on Bunkr
         session = CurlSession(impersonate="chrome")
+        session.headers.update({"User-Agent": user_agent})
         parsed = urlparse(url)
     except Exception as e:
         session = create_scraper()
         session.headers.update({"User-Agent": user_agent})
         parsed = urlparse(url)
 
-    if "/a/" in parsed.path:
+    if "/a/" in parsed.path or "/album/" in parsed.path:
         page_url = url if "advanced=1" in url else f"{url}?advanced=1"
         try:
             page = session.get(page_url).text
         except Exception as e:
             raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}") from e
+            
         title_match = search(r'property="og:title" content="([^"]+)"', page)
         title = unquote(title_match.group(1)) if title_match else "bunkr_album"
-        items_match = search(
-            r"window\\.albumFiles\\s*=\\s*(\\[.*?\\])", page, flags=DOTALL
-        )
+        
+        items_match = search(r"window\.albumFiles\s*=\s*(\[.*?\])", page, flags=DOTALL)
         if not items_match:
             items_raw = _extract_between(page, "window.albumFiles = [", "</script>")
             if not items_raw:
@@ -622,48 +625,49 @@ def bunkr(url):
             items_raw = f"[{items_raw}]"
         else:
             items_raw = items_match.group(1)
-        item_blocks = list(findall(r"\\{.*?\\}", items_raw, flags=DOTALL))
+            
+        item_blocks = list(findall(r"\{.*?\}", items_raw, flags=DOTALL))
         if not item_blocks:
             item_blocks = items_raw.split("\n},\n")
+            
         details = {
             "contents": [],
             "title": title,
             "total_size": 0,
-            "header": _download_headers(url, session),
+            "header": _download_headers(url),
         }
+        
         for item in item_blocks:
-            data_id_match = search(r"id:\\s*([0-9]+)", item)
+            data_id_match = search(r"id:\s*([0-9]+)", item)
             if not data_id_match:
                 continue
             data_id = data_id_match.group(1).strip()
             
-            try:
-                file_url, _referer = _fetch_file_info(session, data_id)
-            except Exception:
-                file_url = ""
+            file_url = ""
+            m_url_match = search(r"mediaUrl:\s*['\"]([^'\"]+)['\"]", item) or search(r"url:\s*['\"]([^'\"]+)['\"]", item)
+            if m_url_match:
+                file_url = _clean_url(m_url_match.group(1))
                 
             if not file_url:
-                # Bunkr Album items now often inject CDN url directly inside the item dictionary
-                m_url_match = search(r"mediaUrl:\s*'([^']+)'", item) or search(r"url:\s*'([^']+)'", item)
-                if m_url_match:
-                    file_url = m_url_match.group(1)
-                    if file_url.startswith("//"):
-                        file_url = f"https:{file_url}"
+                try:
+                    file_url, _referer = _fetch_file_info(session, data_id)
+                except Exception:
+                    pass
+                    
             if not file_url:
                 continue
                 
-            name_match = search(r"original:\\s*'([^']*)'", item) or search(
-                r'original:\\s*"([^"]*)"', item
-            )
+            name_match = search(r"original:\s*'([^']*)'", item) or search(r'original:\s*"([^"]*)"', item)
             filename = _json_unescape(name_match.group(1)) if name_match else ""
             if not filename:
                 filename = unquote(urlparse(file_url).path.rsplit("/", 1)[-1])
-            size_match = search(r"size:\\s*([0-9]+)", item)
+                
+            size_match = search(r"size:\s*([0-9]+)", item)
             if size_match:
                 details["total_size"] += int(size_match.group(1))
-            details["contents"].append(
-                {"path": "", "filename": filename, "url": file_url}
-            )
+                
+            details["contents"].append({"path": "", "filename": filename, "url": file_url})
+            
         if not details["contents"]:
             raise DirectDownloadLinkException("ERROR: Album files not found")
         if len(details["contents"]) == 1:
@@ -675,10 +679,8 @@ def bunkr(url):
     except Exception as e:
         raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}") from e
 
-    # Bunkr's old apidl endpoint now commonly returns 403.  File pages already
-    # include the media URL, which also avoids depending on that obsolete API.
-    if file_url := _extract_media_url(page, url):
-        return file_url, _download_headers(url, session)
+    if file_url := _extract_media_url(page):
+        return file_url, _download_headers(url)
 
     data_id = _extract_data_id(page)
     if not data_id:
@@ -686,8 +688,10 @@ def bunkr(url):
             data_id = parsed.path.rsplit("/", 1)[-1]
         else:
             raise DirectDownloadLinkException("ERROR: File id not found")
+            
     file_url, referer = _fetch_file_info(session, data_id)
-    return file_url, _download_headers(referer, session)
+    return file_url, _download_headers(referer)
+
 
 def fuckingfast_dl(url):
     """
