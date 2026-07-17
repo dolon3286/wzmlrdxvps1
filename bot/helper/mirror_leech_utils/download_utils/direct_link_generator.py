@@ -528,7 +528,11 @@ def bunkr(url):
             if candidate.startswith("//"):
                 candidate = f"https:{candidate}"
             candidate_domain = urlparse(candidate).hostname or ""
-            if candidate.startswith(("http://", "https://")) and "bunkr" in candidate_domain:
+            if (
+                candidate.startswith(("http://", "https://"))
+                and "." in candidate_domain
+                and "bunkr" in candidate_domain
+            ):
                 return candidate
         return ""
 
