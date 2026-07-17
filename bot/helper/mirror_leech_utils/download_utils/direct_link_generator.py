@@ -517,16 +517,30 @@ def bunkr(url):
         tree = HTML(page)
         candidates = tree.xpath(
             "//video/@src | //video/source/@src | //source/@src | "
-            "//a[@download]/@href | //*[@data-src]/@data-src"
+            "//a[@download]/@href | //*[@data-src]/@data-src | "
+            "//meta[@property='og:video']/@content"
+        )
+        candidates.extend(
+            findall(r'https?://[^"\'\\s<>]+', page.replace("\\/", "/"))
         )
         for candidate in candidates:
-            candidate = candidate.replace("\\/", "/")
+            candidate = candidate.replace("\\/", "/").replace("&amp;", "&")
             if candidate.startswith("//"):
                 candidate = f"https:{candidate}"
             candidate_domain = urlparse(candidate).hostname or ""
             if candidate.startswith(("http://", "https://")) and "bunkr" in candidate_domain:
                 return candidate
         return ""
+
+    def _download_headers(referer):
+        """Keep the Bunkr browser context when aria2 fetches the media URL."""
+        headers = [f"Referer: {referer}", f"User-Agent: {user_agent}"]
+        cookies = "; ".join(
+            f"{name}={value}" for name, value in session.cookies.get_dict().items()
+        )
+        if cookies:
+            headers.append(f"Cookie: {cookies}")
+        return headers
 
     def _json_unescape(value):
         if not value:
@@ -585,7 +599,7 @@ def bunkr(url):
             "contents": [],
             "title": title,
             "total_size": 0,
-            "header": f"Referer: {root_dl}/",
+            "header": _download_headers(url),
         }
         for item in item_blocks:
             data_id_match = search(r"id:\\s*([0-9]+)", item)
@@ -619,7 +633,7 @@ def bunkr(url):
     # Bunkr's old apidl endpoint now commonly returns 403.  File pages already
     # include the media URL, which also avoids depending on that obsolete API.
     if file_url := _extract_media_url(page):
-        return file_url, f"Referer: {url}"
+        return file_url, _download_headers(url)
 
     data_id = _extract_data_id(page)
     if not data_id:
@@ -628,7 +642,7 @@ def bunkr(url):
         else:
             raise DirectDownloadLinkException("ERROR: File id not found")
     file_url, referer = _fetch_file_info(session, data_id)
-    return file_url, f"Referer: {referer}"
+    return file_url, _download_headers(referer)
 
 def fuckingfast_dl(url):
     """
