@@ -514,6 +514,7 @@ def bunkr(url):
 
     def _extract_media_url(page):
         """Prefer the media URL rendered by Bunkr over its protected legacy API."""
+        page_domain = urlparse(url).hostname or ""
         tree = HTML(page)
         candidates = tree.xpath(
             "//video/@src | //video/source/@src | //source/@src | "
@@ -532,6 +533,7 @@ def bunkr(url):
                 candidate.startswith(("http://", "https://"))
                 and "." in candidate_domain
                 and "bunkr" in candidate_domain
+                and candidate_domain != page_domain
             ):
                 return candidate
         return ""
