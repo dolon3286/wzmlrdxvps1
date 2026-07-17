@@ -25,6 +25,15 @@ user_agent = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
 )
 
+DZHQ_BYPASS_API = "https://dzhq-bp-api.vercel.app"
+DZHQ_BYPASS_SERVICES = {
+    "gdflix": ("gdflix.dev",),
+    "hubcloud": ("hubcloud.ink", "hubcloud.one", "hubcloud.art"),
+    "driveseed": ("driveseed.org", "driveseed.in"),
+    "filepress": ("filepress.store", "filepress.in"),
+    "hubdrive": ("hubdrive.space", "hubdrive.in"),
+}
+
 debrid_link_supported_sites = [
     "1fichier.com",
     "anonfiles.com",
@@ -163,6 +172,8 @@ def direct_link_generator(link):
         return yandex_disk(link)
     elif "buzzheavier.com" in domain:
         return buzzheavier(link)
+    elif service := _dzhq_bypass_service(domain):
+        return dzhq_bypass(link, service)
     elif "bunkr" in domain:
         return bunkr(link)
     elif "devuploads" in domain:
@@ -352,6 +363,54 @@ def direct_link_generator(link):
         raise DirectDownloadLinkException(f"No Direct link function found for {link}")
 
 
+def _dzhq_bypass_service(domain):
+    """Return the DZHQ API service that supports *domain*, if any."""
+    domain = domain.lower().removeprefix("www.")
+    for service, domains in DZHQ_BYPASS_SERVICES.items():
+        if service in domain.split(".") or any(
+            domain == supported or domain.endswith(f".{supported}")
+            for supported in domains
+        ):
+            return service
+    return None
+
+
+def dzhq_bypass(url, service):
+    """Resolve supported Indian file-host links through the DZHQ bypass API."""
+    try:
+        response = get(
+            f"{DZHQ_BYPASS_API}/{service}", params={"url": url}, timeout=30
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as e:
+        raise DirectDownloadLinkException(
+            f"ERROR: Unable to generate a direct link with {service}"
+        ) from e
+
+    def find_url(value):
+        if isinstance(value, str) and value.startswith(("http://", "https://")):
+            return value
+        if isinstance(value, dict):
+            for key in ("download_url", "direct_link", "direct_url", "url", "link"):
+                if direct_url := find_url(value.get(key)):
+                    return direct_url
+            for item in value.values():
+                if direct_url := find_url(item):
+                    return direct_url
+        if isinstance(value, list):
+            for item in value:
+                if direct_url := find_url(item):
+                    return direct_url
+        return None
+
+    if direct_url := find_url(payload):
+        return direct_url
+    raise DirectDownloadLinkException(
+        f"ERROR: {service} did not return a direct download link"
+    )
+
+
 def get_captcha_token(session, params):
     recaptcha_api = "https://www.google.com/recaptcha/api2"
     res = session.get(f"{recaptcha_api}/anchor", params=params)
@@ -453,6 +512,42 @@ def bunkr(url):
             return match_id.group(1)
         return ""
 
+    def _extract_media_url(page):
+        """Prefer the media URL rendered by Bunkr over its protected legacy API."""
+        page_domain = urlparse(url).hostname or ""
+        tree = HTML(page)
+        candidates = tree.xpath(
+            "//video/@src | //video/source/@src | //source/@src | "
+            "//a[@download]/@href | //*[@data-src]/@data-src | "
+            "//meta[@property='og:video']/@content"
+        )
+        candidates.extend(
+            findall(r'https?://[^"\'\\s<>]+', page.replace("\\/", "/"))
+        )
+        for candidate in candidates:
+            candidate = candidate.replace("\\/", "/").replace("&amp;", "&")
+            if candidate.startswith("//"):
+                candidate = f"https:{candidate}"
+            candidate_domain = urlparse(candidate).hostname or ""
+            if (
+                candidate.startswith(("http://", "https://"))
+                and "." in candidate_domain
+                and "bunkr" in candidate_domain
+                and candidate_domain != page_domain
+            ):
+                return candidate
+        return ""
+
+    def _download_headers(referer):
+        """Keep the Bunkr browser context when aria2 fetches the media URL."""
+        headers = [f"Referer: {referer}", f"User-Agent: {user_agent}"]
+        cookies = "; ".join(
+            f"{name}={value}" for name, value in session.cookies.get_dict().items()
+        )
+        if cookies:
+            headers.append(f"Cookie: {cookies}")
+        return headers
+
     def _json_unescape(value):
         if not value:
             return ""
@@ -510,7 +605,7 @@ def bunkr(url):
             "contents": [],
             "title": title,
             "total_size": 0,
-            "header": f"Referer: {root_dl}/",
+            "header": _download_headers(url),
         }
         for item in item_blocks:
             data_id_match = search(r"id:\\s*([0-9]+)", item)
@@ -541,6 +636,11 @@ def bunkr(url):
     except Exception as e:
         raise DirectDownloadLinkException(f"ERROR: {e.__class__.__name__}") from e
 
+    # Bunkr's old apidl endpoint now commonly returns 403.  File pages already
+    # include the media URL, which also avoids depending on that obsolete API.
+    if file_url := _extract_media_url(page):
+        return file_url, _download_headers(url)
+
     data_id = _extract_data_id(page)
     if not data_id:
         if "/file/" in parsed.path:
@@ -548,7 +648,7 @@ def bunkr(url):
         else:
             raise DirectDownloadLinkException("ERROR: File id not found")
     file_url, referer = _fetch_file_info(session, data_id)
-    return file_url, f"Referer: {referer}"
+    return file_url, _download_headers(referer)
 
 def fuckingfast_dl(url):
     """
@@ -859,12 +959,43 @@ def onedrive(link):
 
 def pixeldrain(url):
     try:
-        url = url.rstrip("/")
-        code = url.split("/")[-1].split("?", 1)[0]
-        response = get("https://cdn.pixeldrain.eu.cc/", allow_redirects=True)
-        return response.url + code
+        parsed = urlparse(url)
+        path_parts = [part for part in parsed.path.split("/") if part]
+        if len(path_parts) < 2 or path_parts[0] not in {"u", "l"}:
+            raise ValueError("Invalid PixelDrain URL")
+        resource_type, resource_id = path_parts[:2]
+        if resource_type == "u":
+            return f"https://pixeldrain.com/api/file/{resource_id}?download"
+
+        response = get(f"https://pixeldrain.com/api/list/{resource_id}", timeout=30)
+        response.raise_for_status()
+        payload = response.json()
+        payload = payload.get("value", payload)
+        files = payload.get("files", [])
+        if not files:
+            raise ValueError("Album is empty or unavailable")
+        details = {
+            "contents": [],
+            "title": payload.get("title") or resource_id,
+            "total_size": 0,
+        }
+        for file in files:
+            file_id = file.get("id")
+            if not file_id:
+                continue
+            details["contents"].append(
+                {
+                    "path": "",
+                    "filename": file.get("name") or file_id,
+                    "url": f"https://pixeldrain.com/api/file/{file_id}?download",
+                }
+            )
+            details["total_size"] += file.get("size", 0)
+        if not details["contents"]:
+            raise ValueError("Album does not contain downloadable files")
+        return details
     except Exception as e:
-        raise DirectDownloadLinkException("ERROR: Direct link not found") from e
+        raise DirectDownloadLinkException("ERROR: PixelDrain resource not found") from e
 
 
 def streamtape(url):
