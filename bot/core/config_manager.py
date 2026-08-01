@@ -22,6 +22,9 @@ class Config:
     DELETE_LINKS = False
     DEBRID_LINK_API = ""
     DISABLE_TORRENTS = False
+    EXTERNAL_DOWNLOAD_CLIENTS = False
+    ARIA2_RPC_URL = "http://localhost:6800/jsonrpc"
+    QBIT_URL = "http://localhost:8090/api/v2/"
     DISABLE_LEECH = False
     DISABLE_BULK = False
     DISABLE_MULTI = False

@@ -41,7 +41,7 @@ async def _connect_aria2(retries=5, delay=2):
     from aioaria2.exceptions import Aria2rpcException
     for i in range(retries):
         try:
-            return await Aria2WebsocketClient.new("http://localhost:6800/jsonrpc")
+            return await Aria2WebsocketClient.new(Config.ARIA2_RPC_URL)
         except Aria2rpcException:
             if i == retries - 1:
                 raise
@@ -58,19 +58,20 @@ class TorrentManager:
             return
         try:
             cls.aria2 = await _connect_aria2()
-            LOGGER.info("Aria2 initialized successfully.")
+            LOGGER.info(f"Aria2 initialized successfully at {Config.ARIA2_RPC_URL}.")
 
             if Config.DISABLE_TORRENTS:
                 LOGGER.info("Torrents are disabled.")
                 return
 
-            proc = await create_subprocess_exec(
-                BinConfig.QBIT_NAME, "-d", f"--profile={getcwd()}/configs/qbittorrent"
-            )
-            await sleep(2)
-            LOGGER.info(f"qBittorrent started (PID: {proc.pid})")
+            if not Config.EXTERNAL_DOWNLOAD_CLIENTS:
+                proc = await create_subprocess_exec(
+                    BinConfig.QBIT_NAME, "-d", f"--profile={getcwd()}/configs/qbittorrent"
+                )
+                await sleep(2)
+                LOGGER.info(f"qBittorrent started (PID: {proc.pid})")
 
-            cls.qbittorrent = await create_client("http://localhost:8090/api/v2/")
+            cls.qbittorrent = await create_client(Config.QBIT_URL)
             cls.qbittorrent = wrap_with_retry(cls.qbittorrent)
 
         except Exception as e:
