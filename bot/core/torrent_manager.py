@@ -64,14 +64,13 @@ class TorrentManager:
                 LOGGER.info("Torrents are disabled.")
                 return
 
-            if not Config.EXTERNAL_DOWNLOAD_CLIENTS:
-                proc = await create_subprocess_exec(
-                    BinConfig.QBIT_NAME, "-d", f"--profile={getcwd()}/configs/qbittorrent"
-                )
-                await sleep(2)
-                LOGGER.info(f"qBittorrent started (PID: {proc.pid})")
+            proc = await create_subprocess_exec(
+                BinConfig.QBIT_NAME, "-d", f"--profile={getcwd()}/configs/qbittorrent"
+            )
+            await sleep(2)
+            LOGGER.info(f"qBittorrent started on VPS network (PID: {proc.pid})")
 
-            cls.qbittorrent = await create_client(Config.QBIT_URL)
+            cls.qbittorrent = await create_client("http://localhost:8090/api/v2/")
             cls.qbittorrent = wrap_with_retry(cls.qbittorrent)
 
         except Exception as e:

@@ -120,37 +120,26 @@ Deploy with Docker and provide the required configuration values. The container 
 <details>
    <summary>VPS with VPN (Gluetun)</summary>
 
-   1. Keep the main `app` service on the normal Docker network. Do **not** set `network_mode: "service:gluetun"` on `app` if you want uploads to use the VPS main IP.
+   1. Keep `app` on the normal Docker network. Do **not** set `network_mode: "service:gluetun"` on `app`; otherwise uploads will also use the VPN IP.
    2. Fill your Gluetun credentials with environment variables or a `.env` file (`VPN_SERVICE_PROVIDER`, `VPN_TYPE`, OpenVPN/WireGuard values, etc.).
-   3. Set these values in `config.py` so download jobs use the Gluetun download-client service:
-
-   ```python
-   EXTERNAL_DOWNLOAD_CLIENTS = True
-   ARIA2_RPC_URL = "http://gluetun:6800/jsonrpc"
-   QBIT_URL = "http://gluetun:8090/api/v2/"
-   ```
-
-   4. Start with the VPN download profile:
+   3. Start with the Aria2 VPN profile when you want **only Aria2 downloads** through Gluetun. qBittorrent and all uploads stay on the VPS original IP:
 
    ```bash
-   COMPOSE_PROFILES=vpn-downloads \
+   COMPOSE_PROFILES=aria2-vpn \
    APP_EXTERNAL_DOWNLOAD_CLIENTS=True \
    APP_ARIA2_RPC_URL=http://gluetun:6800/jsonrpc \
-   APP_QBIT_URL=http://gluetun:8090/api/v2/ \
    docker compose up -d
    ```
 
-   In this mode, Aria2/qBittorrent run in Gluetun's network namespace for downloading, while Telegram, Google Drive, rclone, YouTube, and hoster uploads run from the main bot container and use the VPS main IP.
-
-   To switch downloads back to the VPS original IP, restart without the VPN download override so the app uses its internal local Aria2/qBittorrent again:
+   4. To switch Aria2 downloads back to the VPS original IP, disable the external Aria2 override and recreate the app/tunnel. The app will start its own local aria2c again:
 
    ```bash
    APP_EXTERNAL_DOWNLOAD_CLIENTS=False docker compose up -d --force-recreate app tunnel
    ```
 
-   For a second bot (`app2`) that should run entirely on the VPS IP, leave it off `network_mode: "service:gluetun"` and keep `APP2_EXTERNAL_DOWNLOAD_CLIENTS=False`. If you later want `app2` uploads on the VPS IP but downloads through VPN, point `APP2_ARIA2_RPC_URL` and `APP2_QBIT_URL` to a separate VPN download-client so both bots do not share the same Aria2/qBittorrent queue.
+   In both modes, qBittorrent starts inside the app container and uses the VPS original IP. Telegram, Google Drive, rclone, YouTube, and hoster uploads also stay on the VPS original IP.
 
-   If you instead put `app` or `app2` itself in `network_mode: "service:gluetun"`, then that bot's uploads will also use the VPN IP.
+   For a second bot (`app2`) that should run entirely on the VPS IP, leave it off `network_mode: "service:gluetun"` and keep `APP2_EXTERNAL_DOWNLOAD_CLIENTS=False`. If you later want only `app2` Aria2 downloads through VPN, point `APP2_ARIA2_RPC_URL` to a separate VPN aria2 service so both bots do not share the same Aria2 queue.
 </details>
 
 <details>

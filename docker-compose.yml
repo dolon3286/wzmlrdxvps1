@@ -1,11 +1,13 @@
 services:
-  # Start this profile when you want downloads through Gluetun but uploads
-  # through the VPS main IP:
-  #   COMPOSE_PROFILES=vpn-downloads docker compose up -d
+  # Optional VPN only for Aria2 downloads. The app and qBittorrent stay on the
+  # normal Docker/VPS network, so uploads and qBittorrent use the VPS IP.
+  # Enable with:
+  #   COMPOSE_PROFILES=aria2-vpn APP_EXTERNAL_DOWNLOAD_CLIENTS=True \
+  #   APP_ARIA2_RPC_URL=http://gluetun:6800/jsonrpc docker compose up -d
   gluetun:
     image: qmcgaw/gluetun:latest
     container_name: gluetun
-    profiles: ["vpn-downloads"]
+    profiles: ["aria2-vpn"]
     cap_add:
       - NET_ADMIN
     devices:
@@ -13,50 +15,39 @@ services:
     environment:
       - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-}
       - VPN_TYPE=${VPN_TYPE:-}
-      # OpenVPN
       - OPENVPN_USER=${OPENVPN_USER:-}
       - OPENVPN_PASSWORD=${OPENVPN_PASSWORD:-}
-      # Wireguard
       - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:-}
       - WIREGUARD_ADDRESS=${WIREGUARD_ADDRESS:-}
       - WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY:-}
       - TZ=${TZ:-Asia/Kolkata}
       - UPDATER_PERIOD=24h
-      # Allow the main app container to reach Aria2/qBittorrent inside Gluetun.
-      - FIREWALL_INPUT_PORTS=6800,8090
+      - FIREWALL_INPUT_PORTS=6800
     expose:
       - "6800"
-      - "8090"
-    ports:
-      - "127.0.0.1:8090:8090"
     restart: on-failure
 
-  download-client:
+  aria2-vpn:
     build: .
-    profiles: ["vpn-downloads"]
-    command: >
-      bash -lc 'chmod +x setpkgs.sh && ./setpkgs.sh aria2c "" 20 false &&
-      qbittorrent-nox -d --profile=/usr/src/app/configs/qbittorrent &&
-      tail -f /dev/null'
+    profiles: ["aria2-vpn"]
+    command: bash -lc 'chmod +x setpkgs.sh && ./setpkgs.sh aria2c "" 20 false && tail -f /dev/null'
     restart: unless-stopped
     network_mode: "service:gluetun"
     depends_on:
       - gluetun
     volumes:
       - ./downloads:/usr/src/app/downloads
-      - ./configs:/usr/src/app/configs
+      - ./configs/ac:/usr/src/app/configs/ac
 
   app:
     build: .
     command: bash start.sh
     restart: unless-stopped
     environment:
-      # Switch app downloads between VPS IP and Gluetun without editing config.py.
-      # false/localhost = downloads and uploads use VPS IP.
-      # true/gluetun URLs = downloads use Gluetun, uploads keep VPS IP.
+      # Switch only Aria2 downloads between VPS IP and Gluetun.
+      # qBittorrent and all uploads always stay on this app container/VPS IP.
       - EXTERNAL_DOWNLOAD_CLIENTS=${APP_EXTERNAL_DOWNLOAD_CLIENTS:-False}
       - ARIA2_RPC_URL=${APP_ARIA2_RPC_URL:-http://localhost:6800/jsonrpc}
-      - QBIT_URL=${APP_QBIT_URL:-http://localhost:8090/api/v2/}
     volumes:
       - ./config.py:/usr/src/app/config.py:ro
       - ./accounts:/usr/src/app/accounts
@@ -76,12 +67,12 @@ services:
   #   command: bash start.sh
   #   restart: unless-stopped
   #   # Keep app2 off Gluetun when you want this bot entirely on the VPS IP.
-  #   # To make app2 downloads use Gluetun later, set APP2_EXTERNAL_DOWNLOAD_CLIENTS=True
-  #   # and point APP2_ARIA2_RPC_URL / APP2_QBIT_URL to an app2-specific VPN download-client.
+  #   # To make only app2 Aria2 downloads use Gluetun later, set
+  #   # APP2_EXTERNAL_DOWNLOAD_CLIENTS=True and APP2_ARIA2_RPC_URL to an
+  #   # app2-specific VPN aria2 service.
   #   environment:
   #     - EXTERNAL_DOWNLOAD_CLIENTS=${APP2_EXTERNAL_DOWNLOAD_CLIENTS:-False}
   #     - ARIA2_RPC_URL=${APP2_ARIA2_RPC_URL:-http://localhost:6800/jsonrpc}
-  #     - QBIT_URL=${APP2_QBIT_URL:-http://localhost:8090/api/v2/}
   #   volumes:
   #     - ./config2.py:/usr/src/app/config.py:ro
   #     - ./app2.accounts:/usr/src/app/accounts

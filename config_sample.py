@@ -38,12 +38,11 @@ DISABLE_MEGA = False
 
 # Disable Options
 DISABLE_TORRENTS = False
-# Keep the bot/web/upload process on the VPS network and point downloads to clients
-# running behind Gluetun. This makes Telegram/GDrive/rclone/uphoster uploads use
-# the VPS main IP instead of the VPN IP. See docker-compose.yml Gluetun example.
+# Keep the bot/web/upload/qBittorrent process on the VPS network and point only
+# Aria2 downloads to a Gluetun-backed aria2c service. When False, local aria2c
+# starts in the app container and uses the VPS original IP.
 EXTERNAL_DOWNLOAD_CLIENTS = False
 ARIA2_RPC_URL = "http://localhost:6800/jsonrpc"
-QBIT_URL = "http://localhost:8090/api/v2/"
 DISABLE_LEECH = False
 DISABLE_BULK = False
 DISABLE_MULTI = False
