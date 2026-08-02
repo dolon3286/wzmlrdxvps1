@@ -145,7 +145,7 @@ Deploy with Docker and provide the required configuration values. The container 
    COMPOSE_PROFILES=aria2-vpn APP_EXTERNAL_DOWNLOAD_CLIENTS=True docker compose up -d
    ```
 
-   When `APP_EXTERNAL_DOWNLOAD_CLIENTS=True`, an empty `ARIA2_RPC_URL` automatically uses `http://gluetun:6800/jsonrpc`.
+   Do not edit `bot/core/config_manager.py`; keep its defaults as code defaults. To enable Gluetun, set `EXTERNAL_DOWNLOAD_CLIENTS = True` in your `config.py` or use `APP_EXTERNAL_DOWNLOAD_CLIENTS=True` from Compose. When external mode is true, an empty `ARIA2_RPC_URL` automatically uses `http://gluetun:6800/jsonrpc`.
 
    4. To switch Aria2 downloads back to the VPS original IP, disable the external Aria2 override and recreate the app/tunnel. The app will start its own local aria2c again:
 

@@ -41,6 +41,8 @@ DISABLE_TORRENTS = False
 # Keep the bot/web/upload/qBittorrent process on the VPS network and point only
 # Aria2 downloads to a Gluetun-backed aria2c service. When False, local aria2c
 # starts in the app container and uses the VPS original IP.
+# Do not edit bot/core/config_manager.py for deployment. Set this to True here
+# in config.py (or APP_EXTERNAL_DOWNLOAD_CLIENTS=True in docker compose) to use Gluetun.
 EXTERNAL_DOWNLOAD_CLIENTS = False
 ARIA2_RPC_URL = ""  # Leave empty: localhost when False, gluetun when True.
 DISABLE_LEECH = False
