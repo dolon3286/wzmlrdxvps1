@@ -2,8 +2,7 @@ services:
   # Optional VPN only for Aria2 downloads. The app and qBittorrent stay on the
   # normal Docker/VPS network, so uploads and qBittorrent use the VPS IP.
   # Enable with:
-  #   COMPOSE_PROFILES=aria2-vpn APP_EXTERNAL_DOWNLOAD_CLIENTS=True \
-  #   APP_ARIA2_RPC_URL=http://gluetun:6800/jsonrpc docker compose up -d
+  #   COMPOSE_PROFILES=aria2-vpn APP_EXTERNAL_DOWNLOAD_CLIENTS=True docker compose up -d
   gluetun:
     image: qmcgaw/gluetun:latest
     container_name: gluetun
@@ -47,7 +46,7 @@ services:
       # Switch only Aria2 downloads between VPS IP and Gluetun.
       # qBittorrent and all uploads always stay on this app container/VPS IP.
       - EXTERNAL_DOWNLOAD_CLIENTS=${APP_EXTERNAL_DOWNLOAD_CLIENTS:-False}
-      - ARIA2_RPC_URL=${APP_ARIA2_RPC_URL:-http://localhost:6800/jsonrpc}
+      - ARIA2_RPC_URL=${APP_ARIA2_RPC_URL:-}
     volumes:
       - ./config.py:/usr/src/app/config.py:ro
       - ./accounts:/usr/src/app/accounts
@@ -72,7 +71,7 @@ services:
   #   # app2-specific VPN aria2 service.
   #   environment:
   #     - EXTERNAL_DOWNLOAD_CLIENTS=${APP2_EXTERNAL_DOWNLOAD_CLIENTS:-False}
-  #     - ARIA2_RPC_URL=${APP2_ARIA2_RPC_URL:-http://localhost:6800/jsonrpc}
+  #     - ARIA2_RPC_URL=${APP2_ARIA2_RPC_URL:-}
   #   volumes:
   #     - ./config2.py:/usr/src/app/config.py:ro
   #     - ./app2.accounts:/usr/src/app/accounts

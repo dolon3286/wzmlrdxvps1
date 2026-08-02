@@ -23,7 +23,7 @@ class Config:
     DEBRID_LINK_API = ""
     DISABLE_TORRENTS = False
     EXTERNAL_DOWNLOAD_CLIENTS = False
-    ARIA2_RPC_URL = "http://localhost:6800/jsonrpc"
+    ARIA2_RPC_URL = ""
     DISABLE_LEECH = False
     DISABLE_BULK = False
     DISABLE_MULTI = False

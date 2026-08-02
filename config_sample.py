@@ -42,7 +42,7 @@ DISABLE_TORRENTS = False
 # Aria2 downloads to a Gluetun-backed aria2c service. When False, local aria2c
 # starts in the app container and uses the VPS original IP.
 EXTERNAL_DOWNLOAD_CLIENTS = False
-ARIA2_RPC_URL = "http://localhost:6800/jsonrpc"
+ARIA2_RPC_URL = ""  # Leave empty: localhost when False, gluetun when True.
 DISABLE_LEECH = False
 DISABLE_BULK = False
 DISABLE_MULTI = False

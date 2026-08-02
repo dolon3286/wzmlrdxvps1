@@ -125,11 +125,10 @@ Deploy with Docker and provide the required configuration values. The container 
    3. Start with the Aria2 VPN profile when you want **only Aria2 downloads** through Gluetun. qBittorrent and all uploads stay on the VPS original IP:
 
    ```bash
-   COMPOSE_PROFILES=aria2-vpn \
-   APP_EXTERNAL_DOWNLOAD_CLIENTS=True \
-   APP_ARIA2_RPC_URL=http://gluetun:6800/jsonrpc \
-   docker compose up -d
+   COMPOSE_PROFILES=aria2-vpn APP_EXTERNAL_DOWNLOAD_CLIENTS=True docker compose up -d
    ```
+
+   When `APP_EXTERNAL_DOWNLOAD_CLIENTS=True`, an empty `ARIA2_RPC_URL` automatically uses `http://gluetun:6800/jsonrpc`.
 
    4. To switch Aria2 downloads back to the VPS original IP, disable the external Aria2 override and recreate the app/tunnel. The app will start its own local aria2c again:
 
