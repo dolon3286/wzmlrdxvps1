@@ -121,7 +121,24 @@ Deploy with Docker and provide the required configuration values. The container 
    <summary>VPS with VPN (Gluetun)</summary>
 
    1. Keep `app` on the normal Docker network. Do **not** set `network_mode: "service:gluetun"` on `app`; otherwise uploads will also use the VPN IP.
-   2. Fill your Gluetun credentials with environment variables or a `.env` file (`VPN_SERVICE_PROVIDER`, `VPN_TYPE`, OpenVPN/WireGuard values, etc.).
+   2. Fill your Gluetun credentials with environment variables or a `.env` file (`VPN_SERVICE_PROVIDER`, `VPN_TYPE`, OpenVPN/WireGuard values, etc.). For a custom `.ovpn` file:
+
+   ```bash
+   mkdir -p gluetun
+   cp /path/to/your-file.ovpn gluetun/custom.conf
+   ```
+
+   Then set these values in `.env`:
+
+   ```env
+   VPN_SERVICE_PROVIDER=custom
+   VPN_TYPE=openvpn
+   OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf
+   OPENVPN_USER=your_username_if_needed
+   OPENVPN_PASSWORD=your_password_if_needed
+   ```
+
+   If the `.ovpn` references extra files like `ca.crt`, place them in `./gluetun/` too and use absolute paths such as `ca /gluetun/ca.crt` inside `custom.conf`.
    3. Start with the Aria2 VPN profile when you want **only Aria2 downloads** through Gluetun. qBittorrent and all uploads stay on the VPS original IP:
 
    ```bash

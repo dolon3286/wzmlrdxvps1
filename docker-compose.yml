@@ -16,6 +16,9 @@ services:
       - VPN_TYPE=${VPN_TYPE:-}
       - OPENVPN_USER=${OPENVPN_USER:-}
       - OPENVPN_PASSWORD=${OPENVPN_PASSWORD:-}
+      # For a custom .ovpn file, set VPN_SERVICE_PROVIDER=custom,
+      # VPN_TYPE=openvpn, and OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf.
+      - OPENVPN_CUSTOM_CONFIG=${OPENVPN_CUSTOM_CONFIG:-}
       - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:-}
       - WIREGUARD_ADDRESS=${WIREGUARD_ADDRESS:-}
       - WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY:-}
@@ -24,6 +27,9 @@ services:
       - FIREWALL_INPUT_PORTS=6800
     expose:
       - "6800"
+    volumes:
+      # Put custom OpenVPN files here, for example ./gluetun/custom.conf.
+      - ./gluetun:/gluetun:ro
     restart: on-failure
 
   aria2-vpn:
