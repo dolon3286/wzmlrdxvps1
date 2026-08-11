@@ -42,6 +42,12 @@ UPLOAD_LIMIT_MARGIN = 5 * 1024 * 1024
 BOT_SAFE_UPLOAD_LIMIT = BOT_UPLOAD_LIMIT - UPLOAD_LIMIT_MARGIN
 
 
+def _get_doc_style_split_name(file_name):
+    if match := re_match(r"(.+)\.part(0*\d+)(\.[^./]+)$", file_name):
+        return f"{match.group(1)}{match.group(3)}.{match.group(2)}"
+    return file_name
+
+
 class TelegramUploader:
     def __init__(self, listener, path):
         self._last_uploaded = 0
@@ -175,6 +181,8 @@ class TelegramUploader:
             lprefix = re_sub(r"<.*?>", "", lprefix).replace(r"\s", " ")
             if not file_.startswith(lprefix):
                 file_ = f"{lprefix}{file_}"
+
+        cap_file_ = _get_doc_style_split_name(cap_file_)
 
         if lsuffix:
             name, ext = ospath.splitext(cap_file_)
@@ -640,7 +648,7 @@ class TelegramUploader:
                     duration=duration,
                     width=width,
                     height=height,
-                    file_name=ospath.basename(o_path),
+                    file_name=_get_doc_style_split_name(ospath.basename(o_path)),
                 )
             elif is_audio:
                 key = "audios"
@@ -657,7 +665,7 @@ class TelegramUploader:
                     duration=duration,
                     artist=artist,
                     title=title,
-                    file_name=ospath.basename(o_path),
+                    file_name=_get_doc_style_split_name(ospath.basename(o_path)),
                 )
             else:
                 key = "photos"
