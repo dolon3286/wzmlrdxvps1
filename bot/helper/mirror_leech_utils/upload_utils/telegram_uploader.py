@@ -513,6 +513,7 @@ class TelegramUploader:
         height=0,
         artist="",
         title="",
+        file_name=None,
     ):
         target_client = TgClient.user if self._user_session else self._listener.client
         self._client = target_client
@@ -525,6 +526,7 @@ class TelegramUploader:
             height=height or 320,
             thumb=thumb if thumb and thumb != "none" else None,
             supports_streaming=True,
+            file_name=file_name or ospath.basename(f_path or self._up_path),
             disable_notification=True,
             reply_to_message_id=self._sent_msg.id,
             progress=self._on_upload_progress,
@@ -536,6 +538,7 @@ class TelegramUploader:
             performer=artist or "",
             title=title or "",
             thumb=thumb if thumb and thumb != "none" else None,
+            file_name=file_name or ospath.basename(f_path or self._up_path),
             disable_notification=True,
             reply_to_message_id=self._sent_msg.id,
             progress=self._on_upload_progress,
@@ -637,6 +640,7 @@ class TelegramUploader:
                     duration=duration,
                     width=width,
                     height=height,
+                    file_name=ospath.basename(o_path),
                 )
             elif is_audio:
                 key = "audios"
@@ -653,6 +657,7 @@ class TelegramUploader:
                     duration=duration,
                     artist=artist,
                     title=title,
+                    file_name=ospath.basename(o_path),
                 )
             else:
                 key = "photos"
