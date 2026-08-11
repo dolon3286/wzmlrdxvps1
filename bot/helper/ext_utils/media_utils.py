@@ -3,7 +3,7 @@ from ast import literal_eval
 from contextlib import suppress
 from PIL import Image
 from hashlib import md5
-from aiofiles.os import remove, path as aiopath, makedirs
+from aiofiles.os import remove, path as aiopath, makedirs, rename
 import json
 from asyncio import (
     create_subprocess_exec,
@@ -830,6 +830,7 @@ class FFMpeg:
         i = 1
         while i <= parts or start_time < duration - 4:
             out_path = f_path.replace(file_, f"{base_name}.part{i:03}{extension}")
+            final_out_path = f_path.replace(file_, f"{file_}.{i:03}")
             cmd = [
                 "taskset",
                 "-c",
@@ -916,6 +917,7 @@ class FFMpeg:
             elif lpd <= 3:
                 await remove(out_path)
                 break
+            await rename(out_path, final_out_path)
             self._last_processed_time += lpd
             self._last_processed_bytes += out_size
             start_time += lpd - 3
