@@ -195,6 +195,18 @@ def speed_string_to_bytes(size_text: str):
     return size
 
 
+def build_rich_table(rows, title=None):
+    """Build a Bot API rich-message HTML table."""
+    table = '<table bordered>'
+    if title:
+        table += f'<caption>{title}</caption>'
+    for row in rows:
+        label = escape(str(row[0]))
+        cells = "".join(f"<td>{cell}</td>" for cell in row[1:])
+        table += f'<tr><th align="left">{label}</th>{cells}</tr>'
+    table += '</table>'
+    return table
+
 def get_progress_bar_string(pct):
     pct = float(str(pct).strip("%"))
     p = min(max(pct, 0), 100)
@@ -250,65 +262,90 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             tstatus = await task.status()
         else:
             tstatus = task.status()
-        msg += f"<b>{index + start_position}.</b> "
-        msg += f"<b><i>{escape(f'{task.name()}')}</i></b>"
+        msg += build_rich_table(
+            [["File Name", f"<b><i>{escape(f'{task.name()}')}</i></b>"]]
+        )
         if task.listener.subname:
-            msg += f"\n┖ <b>Sub Name</b> → <i>{task.listener.subname}</i>"
+            msg += "\n" + build_rich_table(
+                [["Sub Name", f"<i>{escape(task.listener.subname)}</i>"]]
+            )
         elapsed = time() - task.listener.message.date.timestamp()
 
-        msg += f"\n\n<b>Task By <code>{task.listener.message.from_user.mention(style='html')}</code> </b> ( #ID{task.listener.message.from_user.id} )"
+        user = task.listener.message.from_user
+        task_by = f"<code>{escape(user.first_name or user.username or str(user.id))}</code>"
+        task_by += f" <code>(#ID{user.id})</code>"
         if task.listener.is_super_chat:
-            msg += f" <i>[<a href='{task.listener.message.link}'>Link</a>]</i>"
+            task_by += f" <a href='{task.listener.message.link}'>[Link]</a>"
+        msg += "\n" + build_rich_table([["Task By", task_by]])
 
         if (
             tstatus not in [MirrorStatus.STATUS_SEED, MirrorStatus.STATUS_QUEUEUP]
             and task.listener.progress
         ):
             progress = task.progress()
-            msg += f"\n{EM_1} {get_progress_bar_string(progress)} <i>{progress}</i>"
             if task.listener.subname:
                 subsize = f" / {get_readable_file_size(task.listener.subsize)}"
                 ac = len(task.listener.files_to_proceed)
-                count = f"( {task.listener.proceed_count} / {ac or '?'} )"
+                count = f" ( {task.listener.proceed_count} / {ac or '?'} )"
             else:
                 subsize = ""
                 count = ""
-            msg += f"\n{EM_2} <b>Processed</b> → <i>{task.processed_bytes()}{subsize} of {task.size()}</i>"
-            if count:
-                msg += f"\n{EM_4} <b>Count:</b> → <b>{count}</b>"
-            msg += f"\n{EM_3} <b>Status</b> → <b>{tstatus}</b>"
-            msg += f"\n{EM_4} <b>Speed</b> → <i>{task.speed()}</i>"
-            msg += f"\n{EM_5} <b>Time</b> → <i>{task.eta()} of {get_readable_time(elapsed + get_raw_time(task.eta()))} ( {get_readable_time(elapsed)} )</i>"
-            if tstatus == MirrorStatus.STATUS_DOWNLOAD and (
-                task.listener.is_torrent or task.listener.is_qbit
-            ):
-                try:
-                    msg += f"\n{EM_2} <b>Seeders</b> → {task.seeders_num()} | <b>Leechers</b> → {task.leechers_num()}"
-                except Exception:
-                    pass
-            # TODO: Add Connected Peers
+            msg += "\n" + build_rich_table(
+                [[get_progress_bar_string(progress), f"<i>{progress}</i>"]]
+            )
+            detail_table = build_rich_table(
+                [
+                    ["Processed", "Status", "Speed", "Time"],
+                    [
+                        f"<i>{task.processed_bytes()}{subsize} of {task.size()}{count}</i>",
+                        f"<b>{tstatus}</b>",
+                        f"<i>{task.speed()}</i>",
+                        f"<i>{task.eta()} of "
+                        f"{get_readable_time(elapsed + get_raw_time(task.eta()))} "
+                        f"( {get_readable_time(elapsed)} )</i>",
+                    ],
+                ]
+            )
+            msg += "\n" + detail_table
         elif tstatus == MirrorStatus.STATUS_SEED:
-            msg += f"\n{EM_6} <b>Size</b> → <i>{task.size()}</i> | <b>Uploaded</b>  → <i>{task.uploaded_bytes()}</i>"
-            msg += f"\n{EM_3} <b>Status</b> → <b>{tstatus}</b>"
-            msg += f"\n{EM_4} <b>Speed</b> → <i>{task.seed_speed()}</i>"
-            msg += f"\n{EM_1} <b>Ratio</b> → <i>{task.ratio()}</i>"
-            msg += f"\n{EM_5} <b>Time</b> → <i>{task.seeding_time()}</i> | <b>Elapsed</b> → <i>{get_readable_time(elapsed)}</i>"
+            msg += "\n" + build_rich_table(
+                [
+                    ["Size", "Uploaded", "Status", "Speed", "Ratio", "Time"],
+                    [
+                        f"<i>{task.size()}</i>",
+                        f"<i>{task.uploaded_bytes()}</i>",
+                        f"<b>{tstatus}</b>",
+                        f"<i>{task.seed_speed()}</i>",
+                        f"<i>{task.ratio()}</i>",
+                        f"<i>{task.seeding_time()} | "
+                        f"Elapsed {get_readable_time(elapsed)}</i>",
+                    ],
+                ]
+            )
         else:
-            msg += f"\n{EM_6} <b>Size</b> → <i>{task.size()}</i>"
-        msg += f"\n{EM_13} <b>Engine</b> → <i>{task.engine}</i>"
-        msg += f"\n{EM_7} <b>In Mode</b> → <i>{task.listener.mode[0]}</i>"
-        msg += f"\n{EM_8} <b>Out Mode</b> → <i>{task.listener.mode[1]}</i>"
+            msg += "\n" + build_rich_table(
+                [["Size", "Status"], [f"<i>{task.size()}</i>", f"<b>{tstatus}</b>"]]
+            )
+
         from ..telegram_helper.bot_commands import BotCommands
 
+        action_headers = ["Engine", "In Mode", "Out Mode"]
+        action_values = [
+            f"<i>{task.engine}</i>",
+            f"<i>{task.listener.mode[0]}</i>",
+            f"<i>{task.listener.mode[1]}</i>",
+        ]
         if tstatus in [
             MirrorStatus.STATUS_DOWNLOAD,
             MirrorStatus.STATUS_PAUSED,
             MirrorStatus.STATUS_QUEUEDL,
-        ]:
+        ] and (task.listener.is_torrent or task.listener.is_qbit):
             if not task.listener.is_nzb and not task.listener.is_jd:
-                msg += f"\n{EM_2} <b>Select</b> → /{BotCommands.SelectCommand[1]}_{task.gid()[:8]}"
-
-        msg += f"\n{EM_9} <b>Stop</b> → <i>/{BotCommands.CancelTaskCommand[1]}_{task.gid()[:8]}</i>\n\n"
+                action_headers.append("Select")
+                action_values.append(f"/{BotCommands.SelectCommand[1]}_{task.gid()[:8]}")
+        action_headers.append("Stop")
+        action_values.append(f"/{BotCommands.CancelTaskCommand[1]}_{task.gid()[:8]}")
+        msg += "\n" + build_rich_table([action_headers, action_values]) + "\n\n"
 
     if len(msg) == 0:
         if status == "All":
@@ -340,6 +377,18 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         "♻️ Refresh", f"status {sid} ref", position="header", style=ButtonStyle.PRIMARY
     )
     button = buttons.build_menu(8)
-    msg += f"\n{EM_10} <b>CPU</b> → {cpu_percent()}% | <b>F</b> → {get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)} [{round(100 - disk_usage(DOWNLOAD_DIR).percent, 1)}%]"
-    msg += f"\n{EM_11} <b>RAM</b> → {virtual_memory().percent}% | <b>UP</b> → {get_readable_time(time() - bot_start_time)}"
+    disk = disk_usage(DOWNLOAD_DIR)
+    stats_table = build_rich_table(
+        [
+            ["CPU", "Free", "RAM", "Uptime"],
+            [
+                f"<i>{cpu_percent()}%</i>",
+                f"<i>{get_readable_file_size(disk.free)}</i> "
+                f"(<b>{round(100 - disk.percent, 1)}%</b>)",
+                f"<i>{virtual_memory().percent}%</i>",
+                f"<i>{get_readable_time(time() - bot_start_time)}</i>",
+            ],
+        ]
+    )
+    msg += f"\n{stats_table}"
     return msg, button

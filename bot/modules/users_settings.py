@@ -26,7 +26,7 @@ from ..helper.ext_utils.bot_utils import (
 from ..helper.ext_utils.db_handler import database
 from ..helper.ext_utils.mega_utils import get_mega_account_info
 from ..helper.ext_utils.media_utils import create_thumb
-from ..helper.ext_utils.status_utils import get_readable_file_size
+from ..helper.ext_utils.status_utils import build_rich_table, get_readable_file_size
 from ..helper.telegram_helper.button_build import ButtonMaker
 from ..helper.telegram_helper.message_utils import (
     delete_message,
@@ -375,13 +375,27 @@ async def get_user_settings(from_user, stype="main"):
             style=ButtonStyle.DANGER,
         )
 
-        text = f"""⌬ <b>User Settings :</b>
-│
-┟ <b>Name</b> → {user_name}
-┠ <b>UserID</b> → #ID{user_id}
-┠ <b>Username</b> → @{from_user.username}
-┠ <b>Telegram DC</b> → {from_user.dc_id}
-┖ <b>Telegram Lang</b> → {Language.get(lc).display_name() if (lc := from_user.language_code) else "N/A"}"""
+        text = "⌬ <b>User Settings :</b>\n" + build_rich_table(
+            [
+                [
+                    "Name",
+                    f"<i>{escape(from_user.first_name or from_user.username or str(user_id))}</i>",
+                ],
+                ["UserID", f"<code>#ID{user_id}</code>"],
+                [
+                    "Username",
+                    f"<i>@{from_user.username}</i>"
+                    if from_user.username
+                    else "<i>N/A</i>",
+                ],
+                ["Telegram DC", f"<i>{from_user.dc_id or 'N/A'}</i>"],
+                [
+                    "Telegram Lang",
+                    f"<i>{Language.get(lc).display_name() if (lc := from_user.language_code) else 'N/A'}</i>",
+                ],
+            ],
+            "Profile",
+        )
 
         btns = buttons.build_menu(2)
 
