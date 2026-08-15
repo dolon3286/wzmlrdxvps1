@@ -2,10 +2,13 @@ FROM mysterysd/wzmlx:v3
 
 WORKDIR /usr/src/app
 
+ENV DEBIAN_FRONTEND=noninteractive \
+    TERM=xterm
+
 COPY requirements.txt .
 RUN uv pip install --python /wzvenv/bin/python --no-cache-dir -r requirements.txt \
     && apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates unzip mkvtoolnix \
+    && apt-get install -y --no-install-recommends curl ca-certificates unzip ffmpeg mkvtoolnix \
     && (apt-cache show gpac >/dev/null 2>&1 && apt-get install -y --no-install-recommends gpac || echo "gpac/MP4Box package unavailable; skipping optional helper") \
     && arch="$(dpkg --print-architecture)" \
     && case "$arch" in amd64) narch="linux-x64" ;; arm64) narch="linux-arm64" ;; *) echo "Unsupported arch: $arch" && exit 1 ;; esac \
