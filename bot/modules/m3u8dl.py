@@ -167,7 +167,7 @@ class M3U8DLHelper:
         await self.listener.on_download_start()
         if self.listener.multi <= 1 and not self.listener.is_rss:
             await send_status_message(self.listener.message)
-        cmd = ["N_m3u8DL-RE", self.listener.link, "--save-dir", path, "--tmp-dir", f"{path}/.m3u8dl", "--no-log", "--no-ansi-color", "--thread-count", "16", "--download-retry-count", "10", "-M", "format=mkv", *_header_args(headers)]
+        cmd = ["N_m3u8DL-RE", self.listener.link, "--save-dir", path, "--tmp-dir", f"{path}/.m3u8dl", "--no-log", "--no-ansi-color", "--thread-count", "16", "--download-retry-count", "10", "--ffmpeg-binary-path", "/usr/local/bin/ffmpeg", "-M", "format=mkv", *_header_args(headers)]
         if self.listener.name:
             cmd.extend(["--save-name", ospath.splitext(self.listener.name)[0]])
         for v in videos:
