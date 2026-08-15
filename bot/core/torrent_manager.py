@@ -37,11 +37,20 @@ def wrap_with_retry(obj, max_retries=3):
     return obj
 
 
+def _aria2_rpc_url():
+    if Config.ARIA2_RPC_URL:
+        return Config.ARIA2_RPC_URL
+    if Config.EXTERNAL_DOWNLOAD_CLIENTS:
+        return "http://gluetun:6800/jsonrpc"
+    return "http://localhost:6800/jsonrpc"
+
+
 async def _connect_aria2(retries=5, delay=2):
     from aioaria2.exceptions import Aria2rpcException
+    aria2_rpc_url = _aria2_rpc_url()
     for i in range(retries):
         try:
-            return await Aria2WebsocketClient.new("http://localhost:6800/jsonrpc")
+            return await Aria2WebsocketClient.new(aria2_rpc_url)
         except Aria2rpcException:
             if i == retries - 1:
                 raise
@@ -58,7 +67,7 @@ class TorrentManager:
             return
         try:
             cls.aria2 = await _connect_aria2()
-            LOGGER.info("Aria2 initialized successfully.")
+            LOGGER.info(f"Aria2 initialized successfully at {_aria2_rpc_url()}.")
 
             if Config.DISABLE_TORRENTS:
                 LOGGER.info("Torrents are disabled.")
@@ -68,7 +77,7 @@ class TorrentManager:
                 BinConfig.QBIT_NAME, "-d", f"--profile={getcwd()}/configs/qbittorrent"
             )
             await sleep(2)
-            LOGGER.info(f"qBittorrent started (PID: {proc.pid})")
+            LOGGER.info(f"qBittorrent started on VPS network (PID: {proc.pid})")
 
             cls.qbittorrent = await create_client("http://localhost:8090/api/v2/")
             cls.qbittorrent = wrap_with_retry(cls.qbittorrent)

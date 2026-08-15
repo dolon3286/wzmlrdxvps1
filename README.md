@@ -120,16 +120,42 @@ Deploy with Docker and provide the required configuration values. The container 
 <details>
    <summary>VPS with VPN (Gluetun)</summary>
 
-   1. Uncomment the `gluetun` service in `docker-compose.yml`
-   2. Fill in your VPN provider credentials
-   3. Set `network_mode: "service:gluetun"` on the `app` service
-   4. Start:
+   1. Keep `app` on the normal Docker network. Do **not** set `network_mode: "service:gluetun"` on `app`; otherwise uploads will also use the VPN IP.
+   2. Fill your Gluetun credentials with environment variables or a `.env` file (`VPN_SERVICE_PROVIDER`, `VPN_TYPE`, OpenVPN/WireGuard values, etc.). For a custom `.ovpn` file:
 
    ```bash
-   docker buildx compose up -d
+   mkdir -p gluetun
+   cp /path/to/your-file.ovpn gluetun/custom.conf
    ```
 
-   All traffic (including the cloudflared tunnel) routes through the VPN.
+   Then set these values in `.env`:
+
+   ```env
+   VPN_SERVICE_PROVIDER=custom
+   VPN_TYPE=openvpn
+   OPENVPN_CUSTOM_CONFIG=/gluetun/custom.conf
+   OPENVPN_USER=your_username_if_needed
+   OPENVPN_PASSWORD=your_password_if_needed
+   ```
+
+   If the `.ovpn` references extra files like `ca.crt`, place them in `./gluetun/` too and use absolute paths such as `ca /gluetun/ca.crt` inside `custom.conf`.
+   3. Start with the Aria2 VPN profile when you want **only Aria2 downloads** through Gluetun. qBittorrent and all uploads stay on the VPS original IP:
+
+   ```bash
+   COMPOSE_PROFILES=aria2-vpn APP_EXTERNAL_DOWNLOAD_CLIENTS=True docker compose up -d
+   ```
+
+   Do not edit `bot/core/config_manager.py`; keep its defaults as code defaults. To enable Gluetun, set `EXTERNAL_DOWNLOAD_CLIENTS = True` in your `config.py` or use `APP_EXTERNAL_DOWNLOAD_CLIENTS=True` from Compose. When external mode is true, an empty `ARIA2_RPC_URL` automatically uses `http://gluetun:6800/jsonrpc`.
+
+   4. To switch Aria2 downloads back to the VPS original IP, disable the external Aria2 override and recreate the app/tunnel. The app will start its own local aria2c again:
+
+   ```bash
+   APP_EXTERNAL_DOWNLOAD_CLIENTS=False docker compose up -d --force-recreate app tunnel
+   ```
+
+   In both modes, qBittorrent starts inside the app container and uses the VPS original IP. Telegram, Google Drive, rclone, YouTube, and hoster uploads also stay on the VPS original IP.
+
+   For a second bot (`app2`) that should run entirely on the VPS IP, leave it off `network_mode: "service:gluetun"` and keep `APP2_EXTERNAL_DOWNLOAD_CLIENTS=False`. If you later want only `app2` Aria2 downloads through VPN, point `APP2_ARIA2_RPC_URL` to a separate VPN aria2 service so both bots do not share the same Aria2 queue.
 </details>
 
 <details>
