@@ -43,4 +43,4 @@ yt-dlp[default,curl-cffi]
 yt-dlp-ejs
 # Native tools required by the /m3u8m and /m3u8l workflow:
 # - N_m3u8DL-RE (https://github.com/nilaoda/N_m3u8DL-RE)
-# - ffmpeg, Shaka Packager/mp4decrypt, mkvtoolnix/mkvmerge, and mp4box/gpac for muxing/decryption helpers.
+# - ffmpeg, Shaka Packager/mp4decrypt, mkvtoolnix/mkvmerge, and optional mp4box/gpac for muxing/decryption helpers.
