@@ -414,6 +414,20 @@ def add_handlers():
     )
     TgClient.bot.add_handler(
         MessageHandler(
+            m3u8_mirror,
+            filters=command(BotCommands.M3U8MirrorCommand, case_sensitive=True)
+            & CustomFilters.authorized,
+        )
+    )
+    TgClient.bot.add_handler(
+        MessageHandler(
+            m3u8_leech,
+            filters=command(BotCommands.M3U8LeechCommand, case_sensitive=True)
+            & CustomFilters.authorized,
+        )
+    )
+    TgClient.bot.add_handler(
+        MessageHandler(
             hydra_search,
             filters=command(BotCommands.NzbSearchCommand, case_sensitive=True)
             & CustomFilters.authorized,

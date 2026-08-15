@@ -19,6 +19,15 @@ yt = """<b>Send link along with command line</b>:
 Check here all supported <a href='https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md'>SITES</a>
 Check all yt-dlp api options from this <a href='https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/YoutubeDL.py#L212'>FILE</a> or use this <a href='https://t.me/mltb_official_channel/177'>script</a> to convert cli arguments to api options."""
 
+m3u8 = """<b>N_m3u8DL-RE mirror/leech</b>
+
+/cmd link --headers "User-Agent: xxx|Referer: https://example.com"
+
+Use -s (default) to select multiple video streams first, then multiple audio streams.
+Use -opt to pass extra N_m3u8DL-RE CLI arguments, for example -opt "--key KID:KEY -M format=mp4".
+Use -n to set the save name.
+"""
+
 clone = """Send Gdrive|Gdot|Filepress|Filebee|Appdrive|Gdflix link or rclone path along with command or by replying to the link/rc_path by command.
 Use -sync to use sync method in rclone. Example: /cmd rcl/rclone_path -up rcl/rclone_path/rc -sync"""
 
@@ -309,6 +318,21 @@ YT_HELP_DICT = {
     "Metadata": metadata,
 }
 
+M3U8_HELP_DICT = {
+    "main": m3u8,
+    "New-Name": new_name,
+    "Headers": "<b>N_m3u8DL-RE headers</b>: --headers or -h\n\n/cmd link --headers 'User-Agent: xxx|Referer: https://example.com'",
+    "Options": "<b>Extra N_m3u8DL-RE options</b>: -opt\n\n/cmd link -opt '--key KID:KEY -M format=mp4 --thread-count 32'",
+    "Quality": "Use -s to open video multi-select buttons first, then audio multi-select buttons. Selection is enabled by default.",
+    "Upload-Destination": upload,
+    "Thumb": thumb,
+    "Split-Size": split_size,
+    "Convert-Media": convert_media,
+    "Force-Start": force_start,
+    "Leech-Type": leech_as,
+    "Metadata": metadata,
+}
+
 MIRROR_HELP_DICT = {
     "main": mirror,
     "New-Name": new_name,
@@ -391,6 +415,8 @@ def get_bot_commands():
         "Leech": "[link/file] Leech files to Upload to Telegram",
         "QbLeech": "[magnet/torrent] Leech files to Upload to Telegram using qbit",
         "YtdlLeech": "[link] Leech YouTube, m3u8, Social Media and yt-dlp supported urls",
+        "M3U8Mirror": "[link] Mirror HLS/DASH with N_m3u8DL-RE",
+        "M3U8Leech": "[link] Leech HLS/DASH with N_m3u8DL-RE",
         "Clone": "[link] Clone files/folders to GDrive",
         "UserSet": "User personal settings",
         "ForceStart": "[gid/reply] Force start from queued task",
