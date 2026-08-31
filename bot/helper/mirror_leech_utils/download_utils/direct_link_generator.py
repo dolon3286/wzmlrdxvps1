@@ -1798,6 +1798,7 @@ def linkBox(url: str):
         raise e
     return details
 
+
 @lru_cache(1)
 def _gofile_salt(_slot):
     try:
