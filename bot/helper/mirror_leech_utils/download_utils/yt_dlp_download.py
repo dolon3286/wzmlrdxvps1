@@ -51,11 +51,6 @@ def get_base_ytdlp_options(cookiefile="cookies.txt"):
         },
         "extractor_args": {
             "youtubetab": {"skip": ["webpage"]},
-            # Prefer the TV client's adaptive formats, but keep the web client
-            # as a fallback. The TV endpoint can occasionally return "The page
-            # needs to be reloaded"; yt-dlp then continues with web instead of
-            # failing the quality-selection request.
-            "youtube": {"player_client": ["tv", "web"]},
         },
         "hls_use_mpegts": True,
         "fragment_retries": 10,
