@@ -51,6 +51,11 @@ def get_base_ytdlp_options(cookiefile="cookies.txt"):
         },
         "extractor_args": {
             "youtubetab": {"skip": ["webpage"]},
+            # Authenticated extraction defaults to tv_downgraded, which may
+            # expose only 360p formats. visionos is yt-dlp's modern
+            # non-authenticated default and avoids account-specific SABR
+            # responses; web remains a compatibility fallback.
+            "youtube": {"player_client": ["visionos", "web"]},
         },
         "hls_use_mpegts": True,
         "fragment_retries": 10,
