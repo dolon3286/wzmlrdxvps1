@@ -51,12 +51,6 @@ def get_base_ytdlp_options(cookiefile="cookies.txt"):
         },
         "extractor_args": {
             "youtubetab": {"skip": ["webpage"]},
-            # Authenticated YouTube extraction includes web_embedded by default.
-            # YouTube can return SABR-only streams for that client, which have no
-            # downloadable URL and can make the quality picker miss formats.
-            # Keep yt-dlp's remaining default clients, while allowing a user to
-            # explicitly override this through YT_DLP_OPTIONS when necessary.
-            "youtube": {"player_client": ["default", "-web_embedded"]},
         },
         "hls_use_mpegts": True,
         "fragment_retries": 10,
