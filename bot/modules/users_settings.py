@@ -170,6 +170,7 @@ user_settings_text = {
         "",
         """Format: {key: value, key: value, key: value}.
 Example: {"format": "bv*+mergeall[vcodec=none]", "nocheckcertificate": True, "playliststart": 10, "fragment_retries": float("inf"), "matchtitle": "S13", "writesubtitles": True, "live_from_start": True, "postprocessor_args": {"ffmpeg": ["-threads", "4"]}, "wait_for_video": (5, 100), "download_ranges": [{"start_time": 0, "end_time": 10}]}
+The default skips YouTube's <code>web_embedded</code> player because it can return SABR-only streams without downloadable URLs. To restore or change YouTube clients, set <code>"extractor_args": {"youtube": {"player_client": ["default"]}}</code> in your options.
 Check all yt-dlp api options from this <a href='https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/YoutubeDL.py#L184'>FILE</a> or use this <a href='https://t.me/mltb_official_channel/177'>script</a> to convert cli arguments to api options.
 
 <i>Send dict of YT-DLP Options according to format.</i> \n┖ <b>Time Left :</b> <code>60 sec</code>""",
