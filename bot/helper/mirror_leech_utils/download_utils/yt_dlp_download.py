@@ -51,6 +51,10 @@ def get_base_ytdlp_options(cookiefile="cookies.txt"):
         },
         "extractor_args": {
             "youtubetab": {"skip": ["webpage"]},
+            # The authenticated default falls back to tv_downgraded, which can
+            # expose only low-resolution formats. Request the current TV client
+            # directly so yt-dlp receives its adaptive high-resolution formats.
+            "youtube": {"player_client": ["tv"]},
         },
         "hls_use_mpegts": True,
         "fragment_retries": 10,
@@ -419,6 +423,14 @@ class YoutubeDLHelper:
             elif key == "download_ranges":
                 if isinstance(value, list):
                     self.opts[key] = lambda info, ytdl: value
+            elif key == "extractor_args" and isinstance(value, dict):
+                for extractor, args in value.items():
+                    if isinstance(args, dict):
+                        self.opts.setdefault("extractor_args", {}).setdefault(
+                            extractor, {}
+                        ).update(args)
+                    else:
+                        self.opts.setdefault("extractor_args", {})[extractor] = args
             else:
                 if key == "writethumbnail" and value is True:
                     self.keep_thumb = True
