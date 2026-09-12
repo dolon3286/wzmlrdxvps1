@@ -24,6 +24,7 @@ from ..helper.listeners.task_listener import TaskListener
 from ..helper.mirror_leech_utils.download_utils.yt_dlp_download import (
     YoutubeDLHelper,
     get_base_ytdlp_options,
+    is_youtube_url,
 )
 from ..helper.telegram_helper.button_build import ButtonMaker
 from ..helper.telegram_helper.message_utils import (
@@ -493,9 +494,13 @@ class YtDlp(TaskListener):
             and await aiopath.exists(usr_cookie)
             else "cookies.txt"
         )
-        LOGGER.info(
-            f"Using cookies.txt file: {cookie_to_use} | User ID : {self.user_id}"
-        )
+        if is_youtube_url(self.link):
+            cookie_to_use = None
+            LOGGER.info("Using no cookies for YouTube to enable VisionOS formats")
+        else:
+            LOGGER.info(
+                f"Using cookies.txt file: {cookie_to_use} | User ID : {self.user_id}"
+            )
 
         options = get_base_ytdlp_options(cookie_to_use)
         if opt:

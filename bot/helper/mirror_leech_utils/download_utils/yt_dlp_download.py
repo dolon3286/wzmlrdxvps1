@@ -3,6 +3,7 @@ from os import path as ospath, listdir
 from re import search as re_search
 from contextlib import suppress
 from secrets import token_hex
+from urllib.parse import urlparse
 from yt_dlp import YoutubeDL, DownloadError
 from yt_dlp.networking.impersonate import ImpersonateTarget
 
@@ -21,10 +22,16 @@ from ..status_utils.yt_dlp_status import YtDlpStatus
 LOGGER = getLogger(__name__)
 
 
-def get_base_ytdlp_options(cookiefile="cookies.txt"):
-    return {
+def is_youtube_url(url):
+    hostname = urlparse(url).hostname or ""
+    return hostname in ("youtube.com", "youtu.be") or hostname.endswith(
+        ".youtube.com"
+    )
+
+
+def get_base_ytdlp_options(cookiefile=None):
+    options = {
         "usenetrc": True,
-        "cookiefile": cookiefile,
         "allow_multiple_video_streams": True,
         "allow_multiple_audio_streams": True,
         "noprogress": True,
@@ -67,6 +74,9 @@ def get_base_ytdlp_options(cookiefile="cookies.txt"):
             "extractor": lambda n: 3,
         },
     }
+    if cookiefile:
+        options["cookiefile"] = cookiefile
+    return options
 
 
 class MyLogger:
@@ -115,15 +125,19 @@ class YoutubeDLHelper:
             and ospath.exists(usr_cookie)
             else "cookies.txt"
         )
+        if is_youtube_url(self._listener.link):
+            cookie_to_use = None
+            LOGGER.info("Using no cookies for YouTube to enable VisionOS formats")
+        else:
+            LOGGER.info(
+                f"Using cookies.txt file: {cookie_to_use} | User ID : {self._listener.user_id}"
+            )
         self.opts = get_base_ytdlp_options(cookie_to_use)
         self.opts.update(
             {
                 "progress_hooks": [self._on_download_progress],
                 "logger": MyLogger(self, self._listener),
             }
-        )
-        LOGGER.info(
-            f"Using cookies.txt file: {cookie_to_use} | User ID : {self._listener.user_id}"
         )
 
     @property
