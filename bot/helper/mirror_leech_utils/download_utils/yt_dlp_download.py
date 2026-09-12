@@ -3,9 +3,7 @@ from os import path as ospath, listdir
 from re import search as re_search
 from contextlib import suppress
 from secrets import token_hex
-from urllib.parse import urlparse
 from yt_dlp import YoutubeDL, DownloadError
-from yt_dlp.networking.impersonate import ImpersonateTarget
 
 from .... import task_dict_lock, task_dict
 from ....core.config_manager import BinConfig
@@ -22,61 +20,12 @@ from ..status_utils.yt_dlp_status import YtDlpStatus
 LOGGER = getLogger(__name__)
 
 
-def is_youtube_url(url):
-    hostname = urlparse(url).hostname or ""
-    return hostname in ("youtube.com", "youtu.be") or hostname.endswith(
-        ".youtube.com"
-    )
-
-
-def get_base_ytdlp_options(cookiefile=None):
-    options = {
-        "usenetrc": True,
-        "allow_multiple_video_streams": True,
-        "allow_multiple_audio_streams": True,
-        "noprogress": True,
-        "allow_playlist_files": True,
-        "overwrites": True,
-        "writethumbnail": True,
-        "trim_file_name": 220,
-        "ffmpeg_location": f"/bin/{BinConfig.FFMPEG_NAME}",
-        "concurrent_fragments": 8,
-        "impersonate": ImpersonateTarget.from_str("chrome"),
-        "socket_timeout": 30,
-        "downloader": {
-            "http": f"/bin/{BinConfig.ARIA2_NAME}",
-            "https": f"/bin/{BinConfig.ARIA2_NAME}",
-        },
-        "downloader_args": {
-            BinConfig.ARIA2_NAME: [
-                "-x16",
-                "-k1M",
-                "-s16",
-                "--max-tries=5",
-                "--retry-wait=3",
-            ],
-        },
-        "extractor_args": {
-            "youtubetab": {"skip": ["webpage"]},
-            # Authenticated extraction defaults to tv_downgraded, which may
-            # expose only 360p formats. visionos is yt-dlp's modern
-            # non-authenticated default and avoids account-specific SABR
-            # responses; web remains a compatibility fallback.
-            "youtube": {"player_client": ["visionos", "web"]},
-        },
-        "hls_use_mpegts": True,
-        "fragment_retries": 10,
-        "retries": 10,
-        "retry_sleep_functions": {
-            "http": lambda n: 3,
-            "fragment": lambda n: 3,
-            "file_access": lambda n: 3,
-            "extractor": lambda n: 3,
-        },
-    }
-    if cookiefile:
-        options["cookiefile"] = cookiefile
-    return options
+def get_cookie_file(user_dict):
+    if not user_dict.get("USE_DEFAULT_COOKIE", False):
+        usr_cookie = user_dict.get("USER_COOKIE_FILE", "")
+        if usr_cookie and ospath.exists(usr_cookie):
+            return usr_cookie
+    return "cookies.txt"
 
 
 class MyLogger:
@@ -118,26 +67,31 @@ class YoutubeDLHelper:
         self.is_playlist = False
         self.keep_thumb = False
         self.playlist_count = 0
-        cookie_to_use = (
-            usr_cookie
-            if not self._listener.user_dict.get("USE_DEFAULT_COOKIE", False)
-            and (usr_cookie := self._listener.user_dict.get("USER_COOKIE_FILE", ""))
-            and ospath.exists(usr_cookie)
-            else "cookies.txt"
-        )
-        if is_youtube_url(self._listener.link):
-            cookie_to_use = None
-            LOGGER.info("Using no cookies for YouTube to enable VisionOS formats")
-        else:
-            LOGGER.info(
-                f"Using cookies.txt file: {cookie_to_use} | User ID : {self._listener.user_id}"
-            )
-        self.opts = get_base_ytdlp_options(cookie_to_use)
-        self.opts.update(
-            {
-                "progress_hooks": [self._on_download_progress],
-                "logger": MyLogger(self, self._listener),
-            }
+        self.opts = {
+            "progress_hooks": [self._on_download_progress],
+            "logger": MyLogger(self, self._listener),
+            "usenetrc": True,
+            "allow_multiple_video_streams": True,
+            "allow_multiple_audio_streams": True,
+            "noprogress": True,
+            "allow_playlist_files": True,
+            "overwrites": True,
+            "writethumbnail": True,
+            "trim_file_name": 220,
+            "ffmpeg_location": f"/bin/{BinConfig.FFMPEG_NAME}",
+            "fragment_retries": 10,
+            "retries": 10,
+            "retry_sleep_functions": {
+                "http": lambda n: 3,
+                "fragment": lambda n: 3,
+                "file_access": lambda n: 3,
+                "extractor": lambda n: 3,
+            },
+        }
+        cookie_to_use = get_cookie_file(self._listener.user_dict)
+        self.opts["cookiefile"] = cookie_to_use
+        LOGGER.info(
+            f"Using cookies.txt file: {cookie_to_use} | User ID : {self._listener.user_id}"
         )
 
     @property
@@ -211,7 +165,9 @@ class YoutubeDLHelper:
                 for entry in result["entries"]:
                     if not entry:
                         continue
-                    elif "filesize_approx" in entry:
+                    if entry.get("ext") == "unknown_video":
+                        entry["ext"] = "mp4"
+                    if "filesize_approx" in entry:
                         self._listener.size += entry.get("filesize_approx", 0) or 0
                     elif "filesize" in entry:
                         self._listener.size += entry.get("filesize", 0) or 0
@@ -223,6 +179,8 @@ class YoutubeDLHelper:
                         if not self._ext:
                             self._ext = ext
             else:
+                if result.get("ext") == "unknown_video":
+                    result["ext"] = "mp4"
                 outtmpl_ = "%(title,fulltitle,alt_title)s%(season_number& |)s%(season_number&S|)s%(season_number|)02d%(episode_number&E|)s%(episode_number|)02d%(height& |)s%(height|)s%(height&p|)s%(fps|)s%(fps&fps|)s%(tbr& |)s%(tbr|)d.%(ext)s"
                 realName = ydl.prepare_filename(result, outtmpl=outtmpl_)
                 ext = ospath.splitext(realName)[-1]
@@ -232,34 +190,15 @@ class YoutubeDLHelper:
                 if not self._ext:
                     self._ext = ext
 
-    @staticmethod
-    def _is_embed_thumbnail_error(error):
-        error = str(error).lower()
-        return (
-            (
-                "postprocessing" in error
-                and "embed" in error
-                and "thumbnail" in error
-            )
-            or "unable to embed using ffprobe & ffmpeg" in error
-        )
-
     def _download(self, path):
         with suppress(Exception):
             with YoutubeDL(self.opts) as ydl:
                 try:
                     ydl.download([self._listener.link])
                 except DownloadError as e:
-                    if self._listener.is_cancelled:
-                        return
-                    if self._is_embed_thumbnail_error(e):
-                        LOGGER.warning(
-                            "Ignoring failed yt-dlp thumbnail embedding after download: %s",
-                            e,
-                        )
-                    else:
+                    if not self._listener.is_cancelled:
                         self._on_download_error(str(e))
-                        return
+                    return
             if self.is_playlist and (
                 not ospath.exists(path) or len(listdir(path)) == 0
             ):
@@ -438,14 +377,6 @@ class YoutubeDLHelper:
             elif key == "download_ranges":
                 if isinstance(value, list):
                     self.opts[key] = lambda info, ytdl: value
-            elif key == "extractor_args" and isinstance(value, dict):
-                for extractor, args in value.items():
-                    if isinstance(args, dict):
-                        self.opts.setdefault("extractor_args", {}).setdefault(
-                            extractor, {}
-                        ).update(args)
-                    else:
-                        self.opts.setdefault("extractor_args", {})[extractor] = args
             else:
                 if key == "writethumbnail" and value is True:
                     self.keep_thumb = True
