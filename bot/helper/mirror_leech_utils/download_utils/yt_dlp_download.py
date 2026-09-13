@@ -51,8 +51,7 @@ def get_base_ytdlp_options(cookiefile="cookies.txt"):
         },
         "extractor_args": {
             "youtube": {
-                "player_client": ["mweb"],
-                "skip": ["webpage", "configs"],
+                "player_client": ["android", "web"],
             },
             "youtubetab": {"skip": ["webpage"]},
         },
