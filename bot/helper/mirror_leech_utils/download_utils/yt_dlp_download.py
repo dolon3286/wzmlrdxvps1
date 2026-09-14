@@ -50,6 +50,9 @@ def get_base_ytdlp_options(cookiefile="cookies.txt"):
             ],
         },
         "extractor_args": {
+            "youtube": {
+                "player_client": ["tv", "web"],
+            },
             "youtubetab": {"skip": ["webpage"]},
         },
         "hls_use_mpegts": True,
