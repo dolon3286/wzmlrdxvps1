@@ -50,13 +50,23 @@ class DirectListener:
                 self._failed += 1
                 LOGGER.error(f"Unable to download {filename} due to: {e}")
                 continue
-            self.download_task = await TorrentManager.aria2.tellStatus(gid)
+            try:
+                self.download_task = await TorrentManager.aria2.tellStatus(gid)
+            except Exception as e:
+                self._failed += 1
+                LOGGER.error(f"Unable to download {filename} due to: {e}")
+                continue
             while True:
                 if self.listener.is_cancelled:
                     if self.download_task:
                         await TorrentManager.aria2_remove(self.download_task)
                     break
-                self.download_task = await TorrentManager.aria2.tellStatus(gid)
+                try:
+                    self.download_task = await TorrentManager.aria2.tellStatus(gid)
+                except Exception as e:
+                    LOGGER.error(f"Unable to download {filename} due to tellStatus error: {e}")
+                    await sleep(1)
+                    continue
                 if error_message := self.download_task.get("errorMessage"):
                     self._failed += 1
                     LOGGER.error(

@@ -54,7 +54,12 @@ async def add_aria2_download(listener, dpath, header, ratio, seed_time):
         LOGGER.info(f"Aria2c Download Error: {e}")
         await listener.on_download_error(f"{e}")
         return
-    download = await TorrentManager.aria2.tellStatus(gid)
+    try:
+        download = await TorrentManager.aria2.tellStatus(gid)
+    except Exception as e:
+        LOGGER.info(f"Aria2c Download tellStatus Error: {e}")
+        await listener.on_download_error(f"{e}")
+        return
     if download.get("errorMessage"):
         error = str(download["errorMessage"]).replace("<", " ").replace(">", " ")
         LOGGER.info(f"Aria2c Download Error: {error}")
