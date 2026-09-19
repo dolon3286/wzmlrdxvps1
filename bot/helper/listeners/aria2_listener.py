@@ -21,10 +21,13 @@ from ..telegram_helper.message_utils import (
 
 async def _on_download_started(api, data):
     gid = data["params"][0]["gid"]
-    with suppress(TimeoutError, ClientError, Exception):
+    try:
         download, options = await api.tellStatus(gid), await api.getOption(gid)
-        if options.get("follow-torrent", "") == "false":
-            return
+    except Exception as e:
+        LOGGER.error(f"{e} Error in onDownloadStart tellStatus")
+        return
+    if options.get("follow-torrent", "") == "false":
+        return
     if is_metadata(download):
         LOGGER.info(f"onDownloadStarted: {gid} METADATA")
         await sleep(1)
@@ -40,7 +43,11 @@ async def _on_download_started(api, data):
                     ):
                         await delete_message(meta)
                         break
-                    download = await api.tellStatus(gid)
+                    try:
+                        download = await api.tellStatus(gid)
+                    except Exception as e:
+                        LOGGER.error(f"{e} Error in onDownloadStart tellStatus")
+                        break
         return
     else:
         LOGGER.info(f"onDownloadStarted: {aria2_name(download)} - Gid: {gid}")
@@ -48,7 +55,11 @@ async def _on_download_started(api, data):
 
     await sleep(2)
     if task := await get_task_by_gid(gid):
-        download = await api.tellStatus(gid)
+        try:
+            download = await api.tellStatus(gid)
+        except Exception as e:
+            LOGGER.error(f"{e} Error in onDownloadStart tellStatus")
+            return
         if "bittorrent" in download:
             task.listener.is_torrent = True
 
@@ -83,7 +94,10 @@ async def _on_download_complete(api, data):
             task.listener.is_torrent = True
             if Config.BASE_URL and task.listener.select:
                 if not task.queued:
-                    await api.forcePause(new_gid)
+                    try:
+                        await api.forcePause(new_gid)
+                    except Exception as e:
+                        LOGGER.error(f"forcePause Error: {e}")
                 SBUTTONS = bt_selection_buttons(new_gid)
                 msg = "<b>Download Paused!</b>\n\n<i>Select your files &amp; press <b>Done Selecting</b> to start.</i>"
                 await send_message(task.listener.message, msg, SBUTTONS)
@@ -110,7 +124,11 @@ async def _on_download_complete(api, data):
 async def _on_bt_download_complete(api, data):
     gid = data["params"][0]["gid"]
     await sleep(1)
-    download = await api.tellStatus(gid)
+    try:
+        download = await api.tellStatus(gid)
+    except Exception as e:
+        LOGGER.error(f"{e} Error in onBtDownloadComplete tellStatus")
+        return
     LOGGER.info(f"onBtDownloadComplete: {aria2_name(download)} - Gid: {gid}")
     if task := await get_task_by_gid(gid):
         task.listener.is_torrent = True
@@ -139,7 +157,11 @@ async def _on_bt_download_complete(api, data):
         await task.listener.on_download_complete()
         if intervals["stopAll"]:
             return
-        download = await api.tellStatus(gid)
+        try:
+            download = await api.tellStatus(gid)
+        except Exception as e:
+            LOGGER.error(f"{e} Error in onBtDownloadComplete tellStatus")
+            return
         if (
             task.listener.seed
             and download.get("status", "") == "complete"
