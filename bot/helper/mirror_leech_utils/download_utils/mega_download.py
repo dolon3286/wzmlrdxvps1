@@ -244,6 +244,11 @@ async def add_mega_download(listener, path):
             await async_api.getPublicNode(listener.link)
             if listener.is_cancelled or mega_listener.is_cancelled:
                 return
+            if mega_listener.error:
+                await listener.on_download_error(
+                    _mega_error_format(mega_listener.error)
+                )
+                return
             node = mega_listener.public_node
             if not node:
                 await listener.on_download_error("Failed to resolve MEGA link")
