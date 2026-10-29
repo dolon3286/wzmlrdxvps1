@@ -173,6 +173,8 @@ def direct_link_generator(link):
         return yandex_disk(link)
     elif "buzzheavier.com" in domain:
         return buzzheavier(link)
+    elif "fileditch.com" in domain:
+        return fileditch(link)
     elif service := _dzhq_bypass_service(domain):
         return dzhq_bypass(link, service)
     elif "bunkr" in domain:
@@ -431,6 +433,15 @@ def transfer_it(url):
         return resp.json()["url"]
     else:
         raise DirectDownloadLinkException("ERROR: File Expired or File Not Found")
+
+
+def fileditch(url):
+    """
+    Generate a direct download link for fileditch URLs.
+    @param link: URL from fileditch
+    @return: Direct download link
+    """
+    return url
 
 
 def buzzheavier(url):
