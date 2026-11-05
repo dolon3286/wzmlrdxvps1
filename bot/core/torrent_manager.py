@@ -5,6 +5,7 @@ from pathlib import Path
 from os import getcwd
 
 from aioaria2 import Aria2WebsocketClient
+from aioaria2.exceptions import Aria2rpcException
 from aiohttp import ClientError
 from aioqbt.client import create_client
 from tenacity import (
@@ -29,7 +30,7 @@ def wrap_with_retry(obj, max_retries=3):
                 stop=stop_after_attempt(max_retries),
                 wait=wait_exponential(multiplier=1, min=1, max=5),
                 retry=retry_if_exception_type(
-                    (ClientError, TimeoutError, RuntimeError)
+                    (ClientError, TimeoutError, RuntimeError, Aria2rpcException)
                 ),
             )
             wrapped = retry_policy(attr)
@@ -38,7 +39,6 @@ def wrap_with_retry(obj, max_retries=3):
 
 
 async def _connect_aria2(retries=5, delay=2):
-    from aioaria2.exceptions import Aria2rpcException
     for i in range(retries):
         try:
             return await Aria2WebsocketClient.new("http://localhost:6800/jsonrpc")
@@ -58,6 +58,7 @@ class TorrentManager:
             return
         try:
             cls.aria2 = await _connect_aria2()
+            cls.aria2 = wrap_with_retry(cls.aria2)
             LOGGER.info("Aria2 initialized successfully.")
 
             if Config.DISABLE_TORRENTS:
