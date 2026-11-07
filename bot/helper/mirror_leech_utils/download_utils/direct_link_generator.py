@@ -233,6 +233,17 @@ def direct_link_generator(link):
         return berkasdrive(link)
     elif "swisstransfer.com" in domain:
         return swisstransfer(link)
+    elif any(
+        x in domain
+        for x in [
+            "fileditch.com",
+            "fileditchvids.st",
+            "itsfileditchfiles.st",
+            "fileditchfiles.st",
+            "fileditchhot.st",
+        ]
+    ):
+        return fileditch(link)
     elif "instagram.com" in domain:
         return instagram(link)
     elif any(x in domain for x in ["akmfiles.com", "akmfls.xyz"]):
@@ -2667,6 +2678,102 @@ def swisstransfer(link):
         "total_size": total_size,
         "header": "User-Agent:Mozilla/5.0",
     }
+
+
+def fileditch(url):
+    """
+    Generate a direct download link for fileditch.com URLs.
+
+    Supports links from:
+      - new.fileditch.com (file pages)
+      - fileditch.com (legacy domain)
+      - fileditchvids.st (video CDN — already direct)
+      - itsfileditchfiles.st (file CDN — already direct)
+      - fileditchfiles.st (status/CDN domain)
+      - fileditchhot.st (hotlink CDN — already direct)
+
+    @param url: URL from fileditch
+    @return: Direct download link
+    """
+    try:
+        parsed = urlparse(url)
+        domain = parsed.hostname or ""
+
+        # URLs on CDN domains are already direct download links
+        cdn_domains = [
+            "fileditchvids.st",
+            "itsfileditchfiles.st",
+            "fileditchfiles.st",
+            "fileditchhot.st",
+        ]
+        if any(cdn in domain for cdn in cdn_domains):
+            return url
+
+        # For new.fileditch.com or fileditch.com file page links,
+        # scrape the page to find the direct download URL
+        with create_scraper() as session:
+            session.headers.update({"User-Agent": user_agent})
+            res = session.get(url)
+            if res.status_code != 200:
+                raise DirectDownloadLinkException(
+                    f"ERROR: Failed to load page (HTTP {res.status_code})"
+                )
+            page = res.text
+            html = HTML(page)
+
+            # Method 1: Look for download anchor with 'download' attribute
+            # e.g. <a href="https://itsfileditchfiles.st/..." download>
+            for a in html.xpath("//a[@download]/@href"):
+                if a and a.startswith("http"):
+                    return a
+
+            # Method 2: Look for video source
+            for src in html.xpath("//video/@src") + html.xpath("//video/source/@src"):
+                if src and src.startswith("http"):
+                    return src
+
+            # Method 3: Look for links pointing to known CDN domains
+            for a in html.xpath("//a/@href"):
+                if a and any(cdn in a for cdn in cdn_domains):
+                    return a
+
+            # Method 4: Search in page source for CDN URLs via regex
+            for cdn in cdn_domains:
+                escaped_cdn = cdn.replace(".", r"\.")
+                pattern = rf'https?://(?:[a-zA-Z0-9-]+\.)?{escaped_cdn}[^\s"\'<>]+'
+                if found := findall(pattern, page):
+                    return found[0]
+
+            # Method 5: og:video or og:url meta tags
+            for meta_prop in ["og:video", "og:video:url", "og:url"]:
+                if meta := html.xpath(
+                    f'//meta[@property="{meta_prop}"]/@content'
+                ):
+                    content = meta[0]
+                    if content and any(cdn in content for cdn in cdn_domains):
+                        return content
+
+            # Method 6: If the URL path looks like a file path
+            # (e.g. /alpha27/hash/filename.ext), construct the direct URL
+            path = parsed.path.strip("/")
+            parts = path.split("/")
+            if len(parts) >= 3:
+                # Determine CDN based on file extension
+                filename = parts[-1]
+                ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+                if ext in ("mp4", "mov", "mkv"):
+                    cdn_host = "fileditchvids.st"
+                else:
+                    cdn_host = "itsfileditchfiles.st"
+                return f"https://{cdn_host}/{path}"
+
+        raise DirectDownloadLinkException(
+            "ERROR: Could not find direct download link for FileDitch"
+        )
+    except DirectDownloadLinkException:
+        raise
+    except Exception as e:
+        raise DirectDownloadLinkException(f"ERROR: {e}") from e
 
 
 def instagram(link: str) -> str:
