@@ -195,15 +195,34 @@ def speed_string_to_bytes(size_text: str):
     return size
 
 
+# --- Telegram Premium Custom Emojis ---
+EM_1 = '<tg-emoji emoji-id="5877219383691972108">➕</tg-emoji>'
+EM_2 = '<tg-emoji emoji-id="5195111279244619776">🍀</tg-emoji>'
+EM_3 = '<tg-emoji emoji-id="5287533898803211359">📫</tg-emoji>'
+EM_4 = '<tg-emoji emoji-id="5411590687663608498">⚡</tg-emoji>'
+EM_5 = '<tg-emoji emoji-id="5422407403884798028">🍀</tg-emoji>'
+EM_6 = '<tg-emoji emoji-id="5424867354993513047">🌷</tg-emoji>'
+EM_7 = '<tg-emoji emoji-id="5443127283898405358">⬇️</tg-emoji>'
+EM_8 = '<tg-emoji emoji-id="5445355530111437729">⬆️</tg-emoji>'
+EM_9 = '<tg-emoji emoji-id="5765005318610228026">❌</tg-emoji>'
+EM_10 = '<tg-emoji emoji-id="5285439518130857782">❤️</tg-emoji>'
+EM_11 = '<tg-emoji emoji-id="5190642636356072894">☔️</tg-emoji>'
+EM_12 = '<tg-emoji emoji-id="5256218768262056531">🟪</tg-emoji>'
+EM_13 = '<tg-emoji emoji-id="5285535716808342592">☠️</tg-emoji>'
+PRG_FULL = '<tg-emoji emoji-id="5321086282103792429">🌷</tg-emoji>'
+PRG_EMPTY = '<tg-emoji emoji-id="5971816626796892111">🔹</tg-emoji>'
+# ----------------------------------------
+
+
 def get_progress_bar_string(pct):
     try:
         pct_float = float(str(pct).strip("%"))
     except Exception:
         pct_float = 0
     p = min(max(pct_float, 0), 100)
-    cFull = int(p / 100 * 30)
-    cEmpty = 30 - cFull
-    return f"[{'▪' * cFull}{'▫' * cEmpty}]"
+    cFull = int(p // 8)
+    p_str = PRG_FULL * cFull + PRG_EMPTY * (12 - cFull)
+    return f"[{p_str}]"
 
 
 async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=1):
@@ -235,9 +254,9 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             tstatus = task.status()
 
         # Task header line 1: index and title
-        msg += f"<b>{idx}. {escape(task.name())}</b>\n"
+        msg += f"<b>{idx}. {escape(task.name())}</b><br>\n"
         if task.listener.subname:
-            msg += f"┖ <b>Sub Name</b> → <i>{task.listener.subname}</i>\n"
+            msg += f"┖ <b>Sub Name</b> → <i>{task.listener.subname}</i><br>\n"
 
         elapsed = time() - task.listener.message.date.timestamp()
         link_str = f" <i>[<a href='{task.listener.message.link}'>Link</a>]</i>" if task.listener.is_super_chat else ""
@@ -245,7 +264,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         # Task header line 2: Task By
         user_mention = task.listener.message.from_user.mention(style="html")
         user_id = task.listener.message.from_user.id
-        msg += f"⚡ <b>Task By</b> {user_mention} ( #ID{user_id} ){link_str}\n"
+        msg += f"{EM_4} <b>Task By</b> {user_mention} ( #ID{user_id} ){link_str}<br>\n"
 
         # Task header line 3: Progress bar
         has_prog = (
@@ -254,14 +273,14 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         )
         if has_prog:
             progress = task.progress()
-            msg += f"{get_progress_bar_string(progress)} {progress}\n\n"
+            msg += f": {get_progress_bar_string(progress)} <i>{progress}</i><br><br>\n"
         else:
-            msg += "\n"
+            msg += "<br>\n"
 
         gid_short = task.gid()[:8]
         is_torrent = getattr(task.listener, "is_torrent", False) or getattr(task.listener, "is_qbit", False)
 
-        # Native Rich Table for Task
+        # Native Rich Table for Task with Premium Emojis
         msg += '<table border="1">\n'
         if has_prog:
             if task.listener.subname:
@@ -271,32 +290,32 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             else:
                 subsize = ""
                 count = ""
-            msg += f"<tr><td>☘️ Processed</td><td>{task.processed_bytes()}{subsize} of {task.size()}{count}</td></tr>\n"
-            msg += f"<tr><td>💸 Status</td><td>{tstatus}</td></tr>\n"
-            msg += f"<tr><td>⚡ Speed</td><td>{task.speed()}</td></tr>\n"
-            msg += f"<tr><td>🍀 Time</td><td>{task.eta()} of {get_readable_time(elapsed + get_raw_time(task.eta()))} ( {get_readable_time(elapsed)} )</td></tr>\n"
+            msg += f"<tr><td>{EM_2} Processed</td><td>{task.processed_bytes()}{subsize} of {task.size()}{count}</td></tr>\n"
+            msg += f"<tr><td>{EM_3} Status</td><td>{tstatus}</td></tr>\n"
+            msg += f"<tr><td>{EM_4} Speed</td><td>{task.speed()}</td></tr>\n"
+            msg += f"<tr><td>{EM_5} Time</td><td>{task.eta()} of {get_readable_time(elapsed + get_raw_time(task.eta()))} ( {get_readable_time(elapsed)} )</td></tr>\n"
             if tstatus == MirrorStatus.STATUS_DOWNLOAD and is_torrent:
                 try:
                     s_num = task.seeders_num()
                     l_num = task.leechers_num()
                     if s_num is not None or l_num is not None:
-                        msg += f"<tr><td>🌱 Seeders / Leechers</td><td>{s_num or 0} / {l_num or 0}</td></tr>\n"
+                        msg += f"<tr><td>{EM_2} Seeders / Leechers</td><td>{s_num or 0} / {l_num or 0}</td></tr>\n"
                 except Exception:
                     pass
         elif tstatus == MirrorStatus.STATUS_SEED:
-            msg += f"<tr><td>🌷 Size</td><td>{task.size()} | Uploaded: {task.uploaded_bytes()}</td></tr>\n"
-            msg += f"<tr><td>💸 Status</td><td>{tstatus}</td></tr>\n"
-            msg += f"<tr><td>⚡ Speed</td><td>{task.seed_speed()}</td></tr>\n"
-            msg += f"<tr><td>➕ Ratio</td><td>{task.ratio()}</td></tr>\n"
-            msg += f"<tr><td>🍀 Time</td><td>{task.seeding_time()} ( {get_readable_time(elapsed)} )</td></tr>\n"
+            msg += f"<tr><td>{EM_6} Size</td><td>{task.size()} | Uploaded: {task.uploaded_bytes()}</td></tr>\n"
+            msg += f"<tr><td>{EM_3} Status</td><td>{tstatus}</td></tr>\n"
+            msg += f"<tr><td>{EM_4} Speed</td><td>{task.seed_speed()}</td></tr>\n"
+            msg += f"<tr><td>{EM_1} Ratio</td><td>{task.ratio()}</td></tr>\n"
+            msg += f"<tr><td>{EM_5} Time</td><td>{task.seeding_time()} ( {get_readable_time(elapsed)} )</td></tr>\n"
         else:
-            msg += f"<tr><td>🌷 Size</td><td>{task.size()}</td></tr>\n"
-            msg += f"<tr><td>💸 Status</td><td>{tstatus}</td></tr>\n"
+            msg += f"<tr><td>{EM_6} Size</td><td>{task.size()}</td></tr>\n"
+            msg += f"<tr><td>{EM_3} Status</td><td>{tstatus}</td></tr>\n"
 
-        msg += f"<tr><td>💀 Engine</td><td>{task.engine}</td></tr>\n"
-        msg += f"<tr><td>⬇️ In Mode</td><td>#{task.listener.mode[0]}</td></tr>\n"
-        msg += f"<tr><td>⬆️ Out Mode</td><td>#{task.listener.mode[1]}</td></tr>\n"
-        msg += f"<tr><td>🛑 Stop</td><td>/{BotCommands.CancelTaskCommand[1]}_{gid_short}</td></tr>\n"
+        msg += f"<tr><td>{EM_13} Engine</td><td>{task.engine}</td></tr>\n"
+        msg += f"<tr><td>{EM_7} In Mode</td><td>{task.listener.mode[0]}</td></tr>\n"
+        msg += f"<tr><td>{EM_8} Out Mode</td><td>{task.listener.mode[1]}</td></tr>\n"
+        msg += f"<tr><td>{EM_9} Stop</td><td>/{BotCommands.CancelTaskCommand[1]}_{gid_short}</td></tr>\n"
         msg += "</table>\n"
 
         # Buttons Inside Message right under task table
@@ -312,21 +331,21 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         if can_select:
             msg += f'<tg-button type="callback_data" data="status {sid} sel {gid_short}" style="primary">📂 Select #{idx}</tg-button>'
         msg += f'<tg-button type="callback_data" data="status {sid} can {gid_short}" style="danger">❌ Cancel #{idx}</tg-button>'
-        msg += '</tg-button-row>\n\n'
+        msg += '</tg-button-row><br><br>\n\n'
 
     if len(tasks) == 0:
         if status == "All":
             return None, None
         else:
-            msg = f"<b>No Active {status} Tasks!</b>\n\n"
+            msg = f"<b>No Active {status} Tasks!</b><br><br>\n\n"
 
     # Native Rich Table for Bot Stats
-    msg += "✨ <b><u>Bot Stats</u></b>\n"
+    msg += f"{EM_12} <b><u>Bot Stats</u></b><br>\n"
     if len(tasks) > STATUS_LIMIT:
-        msg += f"<b>Page:</b> {page_no}/{pages} | <b>Tasks:</b> {tasks_no} | <b>Step:</b> {page_step}\n"
+        msg += f"<b>Page:</b> {page_no}/{pages} | <b>Tasks:</b> {tasks_no} | <b>Step:</b> {page_step}<br>\n"
 
     msg += '<table border="1">\n'
-    msg += '<tr><th>🍧 CPU</th><th>☕ Free</th><th>🪁 RAM</th><th>⚡ UP</th></tr>\n'
+    msg += f'<tr><th>{EM_10} CPU</th><th>☕ Free</th><th>{EM_11} RAM</th><th>{EM_4} UP</th></tr>\n'
     msg += f'<tr><td>{cpu_percent()}%</td><td>{get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)} [{round(100 - disk_usage(DOWNLOAD_DIR).percent, 1)}%]</td><td>{virtual_memory().percent}%</td><td>{get_readable_time(time() - bot_start_time)}</td></tr>\n'
     msg += '</table>\n'
 
