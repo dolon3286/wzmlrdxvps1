@@ -276,11 +276,11 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         gid_short = task.gid()[:8]
         is_torrent = getattr(task.listener, "is_torrent", False) or getattr(task.listener, "is_qbit", False)
 
-        # Native Rich Table for Task with Premium Emojis (Progress bar as Table Title)
+        # Native Rich Table for Task with Premium Emojis (Progress bar as main table caption title)
         msg += '<table border="1">\n'
         if has_prog:
             progress = task.progress()
-            msg += f'<tr><th colspan="2">{get_progress_bar_string(progress)} <i>{progress}</i></th></tr>\n'
+            msg += f'<caption>{get_progress_bar_string(progress)} <i>{progress}</i></caption>\n'
         if has_prog:
             if task.listener.subname:
                 subsize = f" / {get_readable_file_size(task.listener.subsize)}"
@@ -289,7 +289,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             else:
                 subsize = ""
                 count = ""
-            msg += f"<tr><td>{EM_2} Processed</td><td>{task.processed_bytes()}{subsize} of {task.size()}{count}</td></tr>\n"
+            msg += f"<tr><th>{EM_2} Processed</th><th><i>{task.processed_bytes()}{subsize} of {task.size()}{count}</i></th></tr>\n"
             msg += f"<tr><td>{EM_3} Status</td><td>{tstatus}</td></tr>\n"
             msg += f"<tr><td>{EM_4} Speed</td><td>{task.speed()}</td></tr>\n"
             msg += f"<tr><td>{EM_5} Time</td><td>{task.eta()} of {get_readable_time(elapsed + get_raw_time(task.eta()))} ( {get_readable_time(elapsed)} )</td></tr>\n"
@@ -302,13 +302,13 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
                 except Exception:
                     pass
         elif tstatus == MirrorStatus.STATUS_SEED:
-            msg += f"<tr><td>{EM_6} Size</td><td>{task.size()} | Uploaded: {task.uploaded_bytes()}</td></tr>\n"
+            msg += f"<tr><th>{EM_6} Size</th><th><i>{task.size()} | Uploaded: {task.uploaded_bytes()}</i></th></tr>\n"
             msg += f"<tr><td>{EM_3} Status</td><td>{tstatus}</td></tr>\n"
             msg += f"<tr><td>{EM_4} Speed</td><td>{task.seed_speed()}</td></tr>\n"
             msg += f"<tr><td>{EM_1} Ratio</td><td>{task.ratio()}</td></tr>\n"
             msg += f"<tr><td>{EM_5} Time</td><td>{task.seeding_time()} ( {get_readable_time(elapsed)} )</td></tr>\n"
         else:
-            msg += f"<tr><td>{EM_6} Size</td><td>{task.size()}</td></tr>\n"
+            msg += f"<tr><th>{EM_6} Size</th><th><i>{task.size()}</i></th></tr>\n"
             msg += f"<tr><td>{EM_3} Status</td><td>{tstatus}</td></tr>\n"
 
         msg += f"<tr><td>{EM_13} Engine</td><td>{task.engine}</td></tr>\n"
