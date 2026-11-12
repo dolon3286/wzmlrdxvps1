@@ -1,10 +1,47 @@
 import re
+from html import escape
 import aiohttp
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ButtonStyle
 
 from ... import LOGGER
 from ...core.config_manager import Config
+
+_RICH_CACHE = {}
+
+
+def _cache_rich_html(chat_id, message_id, html):
+    if chat_id and message_id and html:
+        if len(_RICH_CACHE) > 250:
+            _RICH_CACHE.clear()
+        _RICH_CACHE[(int(chat_id), int(message_id))] = html
+
+
+def get_cached_rich_html(chat_id, message_id):
+    if not chat_id or not message_id:
+        return None
+    return _RICH_CACHE.get((int(chat_id), int(message_id)))
+
+
+def strip_inside_button_blocks(html):
+    if not html:
+        return ""
+    s = re.sub(r'<tg-button-row(?:\s+[^>]*)?>.*?</tg-button-row>', '', str(html), flags=re.DOTALL | re.IGNORECASE)
+    s = re.sub(r'<tg-button(?:\s+[^>]*)?>.*?</tg-button>', '', s, flags=re.DOTALL | re.IGNORECASE)
+    return s.strip()
+
+
+async def update_cached_rich_countdown(chat_id, message_id, new_last_line):
+    cached = get_cached_rich_html(chat_id, message_id)
+    if not cached:
+        return None
+    idx = cached.find("<tg-button-row")
+    body = cached[:idx].rstrip() if idx != -1 else cached.rstrip()
+    tail = cached[idx:] if idx != -1 else ""
+    lines = body.split("\n")
+    lines[-1] = new_last_line
+    new_html = "\n".join(lines) + (f"\n\n{tail}" if tail else "")
+    return await edit_rich_message(chat_id, message_id, new_html)
 
 
 class RichBotChat:
@@ -212,13 +249,17 @@ def inside_buttons_to_html(reply_markup, align="center"):
             style = btn.get("style") if isinstance(btn, dict) else getattr(btn, "style", None)
             style_str = f' style="{_map_btn_style(style)}"' if _map_btn_style(style) else ""
 
+            safe_text = escape(str(text))
             if url:
-                row_tags.append(f'<tg-button type="url" url="{url}"{style_str}>{text}</tg-button>')
+                safe_url = escape(str(url), quote=True)
+                row_tags.append(f'<tg-button type="url" url="{safe_url}"{style_str}>{safe_text}</tg-button>')
             elif cb:
-                row_tags.append(f'<tg-button type="callback_data" data="{cb}"{style_str}>{text}</tg-button>')
+                safe_cb = escape(str(cb), quote=True)
+                row_tags.append(f'<tg-button type="callback_data" data="{safe_cb}"{style_str}>{safe_text}</tg-button>')
             elif web_app:
                 wa_url = web_app.get("url") if isinstance(web_app, dict) else getattr(web_app, "url", "")
-                row_tags.append(f'<tg-button type="web_app" url="{wa_url}"{style_str}>{text}</tg-button>')
+                safe_wa = escape(str(wa_url), quote=True)
+                row_tags.append(f'<tg-button type="web_app" url="{safe_wa}"{style_str}>{safe_text}</tg-button>')
         if row_tags:
             html_blocks.append(f'<tg-button-row{align_attr}>' + "".join(row_tags) + '</tg-button-row>')
     return "\n".join(html_blocks)
@@ -267,7 +308,9 @@ async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML", use_
 
     res = await call_bot_api("sendRichMessage", payload)
     if res and res.get("ok"):
-        return RichBotMessage(res.get("result"), text=rich_html)
+        msg = RichBotMessage(res.get("result"), text=rich_html)
+        _cache_rich_html(chat_id_int, msg.id, rich_html)
+        return msg
 
     # Fallback to sendMessage if sendRichMessage not accepted
     LOGGER.warning("sendRichMessage failed, falling back to sendMessage")
@@ -301,13 +344,11 @@ async def edit_rich_message(chat_id, message_id, text, buttons=None, parse_mode=
     has_inside_buttons = "<tg-button" in rich_html
     clean_text = clean_rich_to_html(rich_html)
 
+    # Primary rich edit: match sendRichMessage schema (no text/parse_mode conflict)
     payload = {
         "chat_id": chat_id_int,
         "message_id": message_id,
-        "text": clean_text,
         "rich_message": {"html": rich_html},
-        "parse_mode": parse_mode,
-        "disable_web_page_preview": True,
     }
     if markup and not has_inside_buttons:
         payload["reply_markup"] = markup
@@ -315,17 +356,37 @@ async def edit_rich_message(chat_id, message_id, text, buttons=None, parse_mode=
     res = await call_bot_api("editMessageText", payload)
     if res and res.get("ok"):
         res_obj = res.get("result") if isinstance(res.get("result"), dict) else {"message_id": message_id, "chat": {"id": chat_id_int}}
+        _cache_rich_html(chat_id_int, message_id, rich_html)
         return RichBotMessage(res_obj, text=rich_html)
     err_str = str(res or "").lower()
     if "message is not modified" in err_str:
+        _cache_rich_html(chat_id_int, message_id, rich_html)
         return RichBotMessage({"message_id": message_id, "chat": {"id": chat_id_int}}, text=rich_html)
 
+    # Secondary rich edit attempt if Bot API requires text parameter alongside rich_message
+    if "text" in err_str and "required" in err_str:
+        payload["text"] = clean_text
+        res = await call_bot_api("editMessageText", payload)
+        if res and res.get("ok"):
+            res_obj = res.get("result") if isinstance(res.get("result"), dict) else {"message_id": message_id, "chat": {"id": chat_id_int}}
+            _cache_rich_html(chat_id_int, message_id, rich_html)
+            return RichBotMessage(res_obj, text=rich_html)
+        if res and "message is not modified" in str(res).lower():
+            _cache_rich_html(chat_id_int, message_id, rich_html)
+            return RichBotMessage({"message_id": message_id, "chat": {"id": chat_id_int}}, text=rich_html)
+
     # Fallback without rich_message
-    payload.pop("rich_message", None)
+    fallback_payload = {
+        "chat_id": chat_id_int,
+        "message_id": message_id,
+        "text": clean_text,
+        "parse_mode": parse_mode,
+        "disable_web_page_preview": True,
+    }
     fallback_markup = markup or extract_buttons_from_html(rich_html)
     if fallback_markup:
-        payload["reply_markup"] = fallback_markup
-    res = await call_bot_api("editMessageText", payload)
+        fallback_payload["reply_markup"] = fallback_markup
+    res = await call_bot_api("editMessageText", fallback_payload)
     if res and res.get("ok"):
         res_obj = res.get("result") if isinstance(res.get("result"), dict) else {"message_id": message_id, "chat": {"id": chat_id_int}}
         return RichBotMessage(res_obj, text=clean_text)

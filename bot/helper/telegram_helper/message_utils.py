@@ -157,12 +157,13 @@ async def send_message(message, text, buttons=None, block=True, photo=None, **kw
         return str(e)
 
 
-async def edit_message(message, text, buttons=None, block=True, photo=None):
+async def edit_message(message, text, buttons=None, block=True, photo=None, use_inside_buttons=False):
     try:
         chat_id = message.chat.id if hasattr(message, "chat") and hasattr(message.chat, "id") else 0
         msg_id = getattr(message, "id", None) or getattr(message, "message_id", 0)
-        if ("<table" in str(text) or "<tg-button" in str(text)) and not getattr(message, "media", None) and not photo:
-            rich_msg = await edit_rich_message(chat_id, msg_id, text, buttons)
+        is_rich = use_inside_buttons or isinstance(message, RichBotMessage) or "<table" in str(text) or "<tg-button" in str(text)
+        if is_rich and not getattr(message, "media", None) and not photo:
+            rich_msg = await edit_rich_message(chat_id, msg_id, text, buttons, use_inside_buttons=use_inside_buttons or isinstance(message, RichBotMessage))
             if rich_msg:
                 return rich_msg
 
