@@ -266,22 +266,21 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         user_mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
         msg += f"{EM_4} <b>Task By</b> {user_mention} ( #ID{user_id} ){link_str}<br>\n"
 
-        # Task header line 3: Progress bar
+        # Task progress check
         has_prog = (
             tstatus not in [MirrorStatus.STATUS_SEED, MirrorStatus.STATUS_QUEUEUP]
             and task.listener.progress
         )
-        if has_prog:
-            progress = task.progress()
-            msg += f": {get_progress_bar_string(progress)} <i>{progress}</i><br><br>\n"
-        else:
-            msg += "<br>\n"
+        msg += "<br>\n"
 
         gid_short = task.gid()[:8]
         is_torrent = getattr(task.listener, "is_torrent", False) or getattr(task.listener, "is_qbit", False)
 
-        # Native Rich Table for Task with Premium Emojis
+        # Native Rich Table for Task with Premium Emojis (Progress bar as Table Title)
         msg += '<table border="1">\n'
+        if has_prog:
+            progress = task.progress()
+            msg += f'<tr><th colspan="2">{get_progress_bar_string(progress)} <i>{progress}</i></th></tr>\n'
         if has_prog:
             if task.listener.subname:
                 subsize = f" / {get_readable_file_size(task.listener.subsize)}"
