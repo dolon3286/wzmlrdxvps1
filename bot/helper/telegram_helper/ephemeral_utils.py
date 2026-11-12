@@ -241,36 +241,46 @@ async def call_bot_api(method, payload, timeout=10):
         return None
 
 
-async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML"):
-    chat_id_int = getattr(chat_id, "id", chat_id)
+def _normalize_rich_html(text):
     text_fixed = re.sub(r'&(?!(?:amp|lt|gt|quot|#\d+);)', '&amp;', str(text))
+    text_fixed = re.sub(r'(<a\s+[^>]*?)href=([^"\'\s>]+)', r'\1href="\2"', text_fixed)
+    return text_fixed
+
+
+async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML", use_inside_buttons=False):
+    chat_id_int = getattr(chat_id, "id", chat_id)
+    rich_html = _normalize_rich_html(text)
+    markup = keyboard_to_bot_api(buttons) if buttons else None
+
+    if use_inside_buttons and markup and "<tg-button" not in rich_html:
+        inside_html = inside_buttons_to_html(markup)
+        if inside_html:
+            rich_html = f"{rich_html}\n\n{inside_html}"
+
+    has_inside_buttons = "<tg-button" in rich_html
     payload = {
         "chat_id": chat_id_int,
-        "rich_message": {"html": text_fixed},
+        "rich_message": {"html": rich_html},
     }
-    markup = keyboard_to_bot_api(buttons) if buttons else None
-    if markup:
+    if markup and not has_inside_buttons:
         payload["reply_markup"] = markup
 
     res = await call_bot_api("sendRichMessage", payload)
     if res and res.get("ok"):
-        return RichBotMessage(res.get("result"), text=text_fixed)
+        return RichBotMessage(res.get("result"), text=rich_html)
 
     # Fallback to sendMessage if sendRichMessage not accepted
     LOGGER.warning("sendRichMessage failed, falling back to sendMessage")
-    clean_text = clean_rich_to_html(text_fixed)
+    clean_text = clean_rich_to_html(rich_html)
     fallback_payload = {
         "chat_id": chat_id_int,
         "text": clean_text,
         "parse_mode": parse_mode,
         "disable_web_page_preview": True,
     }
-    if markup:
-        fallback_payload["reply_markup"] = markup
-    else:
-        extracted = extract_buttons_from_html(text_fixed)
-        if extracted:
-            fallback_payload["reply_markup"] = extracted
+    fallback_markup = markup or extract_buttons_from_html(rich_html)
+    if fallback_markup:
+        fallback_payload["reply_markup"] = fallback_markup
 
     res = await call_bot_api("sendMessage", fallback_payload)
     if res and res.get("ok"):
@@ -278,37 +288,47 @@ async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML"):
     return None
 
 
-async def edit_rich_message(chat_id, message_id, text, buttons=None, parse_mode="HTML"):
+async def edit_rich_message(chat_id, message_id, text, buttons=None, parse_mode="HTML", use_inside_buttons=False):
     chat_id_int = getattr(chat_id, "id", chat_id)
-    text_fixed = re.sub(r'&(?!(?:amp|lt|gt|quot|#\d+);)', '&amp;', str(text))
-    clean_text = clean_rich_to_html(text_fixed)
+    rich_html = _normalize_rich_html(text)
     markup = keyboard_to_bot_api(buttons) if buttons else None
-    if not markup:
-        markup = extract_buttons_from_html(text_fixed)
+
+    if use_inside_buttons and markup and "<tg-button" not in rich_html:
+        inside_html = inside_buttons_to_html(markup)
+        if inside_html:
+            rich_html = f"{rich_html}\n\n{inside_html}"
+
+    has_inside_buttons = "<tg-button" in rich_html
+    clean_text = clean_rich_to_html(rich_html)
 
     payload = {
         "chat_id": chat_id_int,
         "message_id": message_id,
         "text": clean_text,
-        "rich_message": {"html": text_fixed},
+        "rich_message": {"html": rich_html},
         "parse_mode": parse_mode,
         "disable_web_page_preview": True,
     }
-    if markup:
+    if markup and not has_inside_buttons:
         payload["reply_markup"] = markup
 
     res = await call_bot_api("editMessageText", payload)
     if res and res.get("ok"):
-        return RichBotMessage(res.get("result"), text=text_fixed)
+        res_obj = res.get("result") if isinstance(res.get("result"), dict) else {"message_id": message_id, "chat": {"id": chat_id_int}}
+        return RichBotMessage(res_obj, text=rich_html)
     err_str = str(res or "").lower()
     if "message is not modified" in err_str:
-        return RichBotMessage({"message_id": message_id, "chat": {"id": chat_id_int}}, text=text_fixed)
+        return RichBotMessage({"message_id": message_id, "chat": {"id": chat_id_int}}, text=rich_html)
 
     # Fallback without rich_message
     payload.pop("rich_message", None)
+    fallback_markup = markup or extract_buttons_from_html(rich_html)
+    if fallback_markup:
+        payload["reply_markup"] = fallback_markup
     res = await call_bot_api("editMessageText", payload)
     if res and res.get("ok"):
-        return RichBotMessage(res.get("result"), text=clean_text)
+        res_obj = res.get("result") if isinstance(res.get("result"), dict) else {"message_id": message_id, "chat": {"id": chat_id_int}}
+        return RichBotMessage(res_obj, text=clean_text)
     if res and "message is not modified" in str(res).lower():
         return RichBotMessage({"message_id": message_id, "chat": {"id": chat_id_int}}, text=clean_text)
     return None
@@ -346,9 +366,12 @@ async def send_ephemeral_message(
     markup = keyboard_to_bot_api(buttons)
 
     # If inside buttons or table requested, try sendRichMessage
+    text_fixed = _normalize_rich_html(text_fixed)
     if use_inside_buttons or "<tg-button" in text_fixed or "<table" in text_fixed:
         rich_html = text_fixed
-        if use_inside_buttons and markup:
+        if "<tg-button" in rich_html:
+            markup = None
+        elif use_inside_buttons and markup:
             inside_html = inside_buttons_to_html(markup)
             if inside_html:
                 rich_html = f"{text_fixed}\n\n{inside_html}"
