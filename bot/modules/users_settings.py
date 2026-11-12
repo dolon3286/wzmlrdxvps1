@@ -1086,6 +1086,16 @@ async def send_user_settings(_, message):
     from_user = message.from_user
     handler_dict[from_user.id] = False
     msg, button = await get_user_settings(from_user)
+    if message.chat.type.name in ["SUPERGROUP", "GROUP"]:
+        from ..helper.telegram_helper.ephemeral_utils import send_ephemeral_message
+        res = await send_ephemeral_message(
+            chat_id=message.chat.id,
+            text=msg,
+            buttons=button,
+            receiver_user_id=from_user.id,
+        )
+        if res:
+            return
     await send_message(message, msg, button)
 
 

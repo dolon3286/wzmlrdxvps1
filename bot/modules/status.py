@@ -130,18 +130,26 @@ async def status_pages(_, query):
         ):
             await query.answer("This task is not for you!", show_alert=True)
             return
-        btn = ButtonMaker()
-        btn.data_button("Yes, Cancel", f"status {key} canconf {gid}", style=ButtonStyle.DANGER)
-        btn.data_button("No, Back", f"status {key} ref", style=ButtonStyle.SUCCESS)
         prompt_text = (
             f"<b>Cancel Task Confirmation</b>\n\n"
-            f"<blockquote>"
-            f"<b>Name:</b> <code>{escape(task.name())}</code>\n"
-            f"<b>GID:</b> <code>{gid}</code>\n\n"
-            f"<i>Are you sure you want to cancel this task?</i>"
-            f"</blockquote>"
+            f"<table border=\"1\">\n"
+            f"<tr><td><b>Task</b></td><td>{escape(task.name())}</td></tr>\n"
+            f"<tr><td><b>GID</b></td><td><code>{gid}</code></td></tr>\n"
+            f"</table>\n\n"
+            f"<i>Are you sure you want to cancel this task?</i>\n"
+            f"<tg-button-row align=\"center\">"
+            f"<tg-button type=\"callback_data\" data=\"status {key} canconf {gid}\" style=\"danger\">Yes, Cancel</tg-button>"
+            f"<tg-button type=\"callback_data\" data=\"status {key} ref\" style=\"primary\">No, Back</tg-button>"
+            f"</tg-button-row>"
         )
-        await edit_message(query.message, prompt_text, btn.build_menu(2))
+        from ..helper.telegram_helper.ephemeral_utils import send_ephemeral_message
+        await send_ephemeral_message(
+            chat_id=query.message.chat.id,
+            text=prompt_text,
+            callback_query_id=query.id,
+            receiver_user_id=user_id,
+            use_inside_buttons=True,
+        )
         return
     elif data[2] == "canconf":
         user_id = query.from_user.id
@@ -207,12 +215,16 @@ async def status_pages(_, query):
             SBUTTONS = bt_selection_buttons(id_)
             msg = (
                 "<b>Download Paused!</b>\n\n"
-                "<blockquote>"
                 "<i>Select your files &amp; press <b>Done Selecting</b> to start.</i>"
-                "</blockquote>"
             )
-            await send_message(query.message, msg, SBUTTONS)
-            await query.answer()
+            from ..helper.telegram_helper.ephemeral_utils import send_ephemeral_message
+            await send_ephemeral_message(
+                chat_id=query.message.chat.id,
+                text=msg,
+                buttons=SBUTTONS,
+                callback_query_id=query.id,
+                receiver_user_id=user_id,
+            )
             return
         except Exception as e:
             await query.answer(f"Selection error: {e}", show_alert=True)
@@ -307,22 +319,22 @@ async def status_pages(_, query):
                     tasks["Download"] += 1
 
         msg = f"""㊂ <b>Tasks Overview</b> :
-<blockquote expandable>
-┎ <b>Download:</b> {tasks["Download"]} | <b>Upload:</b> {tasks["Upload"]}
-┠ <b>Seed:</b> {tasks["Seed"]} | <b>Archive:</b> {tasks["Archive"]}
-┠ <b>Extract:</b> {tasks["Extract"]} | <b>Split:</b> {tasks["Split"]}
-┠ <b>QueueDL:</b> {tasks["QueueDl"]} | <b>QueueUP:</b> {tasks["QueueUp"]}
-┠ <b>Clone:</b> {tasks["Clone"]} | <b>CheckUp:</b> {tasks["CheckUp"]}
-┠ <b>Paused:</b> {tasks["Pause"]} | <b>SamVideo:</b> {tasks["SamVid"]}
-┞ <b>Convert:</b> {tasks["ConvertMedia"]} | <b>FFmpeg:</b> {tasks["FFmpeg"]}
-│
-┟ <b>Total Download Speed:</b> {get_readable_file_size(dl_speed)}/s
-┠ <b>Total Upload Speed:</b> {get_readable_file_size(up_speed)}/s
-┖ <b>Total Seeding Speed:</b> {get_readable_file_size(seed_speed)}/s
-</blockquote>"""
-        button = ButtonMaker()
-        button.data_button("Back to Status", f"status {data[1]} ref", style=ButtonStyle.PRIMARY)
-        await edit_message(message, msg, button.build_menu())
+<table border="1">
+<tr><th>Category</th><th>Count / Speed</th></tr>
+<tr><td><b>Download</b></td><td>{tasks["Download"]} ({get_readable_file_size(dl_speed)}/s)</td></tr>
+<tr><td><b>Upload</b></td><td>{tasks["Upload"]} ({get_readable_file_size(up_speed)}/s)</td></tr>
+<tr><td><b>Seed</b></td><td>{tasks["Seed"]} ({get_readable_file_size(seed_speed)}/s)</td></tr>
+<tr><td><b>Archive / Extract</b></td><td>{tasks["Archive"]} / {tasks["Extract"]}</td></tr>
+<tr><td><b>Split / Clone</b></td><td>{tasks["Split"]} / {tasks["Clone"]}</td></tr>
+<tr><td><b>Queue DL / UP</b></td><td>{tasks["QueueDl"]} / {tasks["QueueUp"]}</td></tr>
+<tr><td><b>Paused / Check</b></td><td>{tasks["Pause"]} / {tasks["CheckUp"]}</td></tr>
+<tr><td><b>Convert / FFmpeg</b></td><td>{tasks["ConvertMedia"]} / {tasks["FFmpeg"]}</td></tr>
+</table>
+
+<tg-button-row align="center">
+<tg-button type="callback_data" data="status {data[1]} ref" style="primary">Back to Status</tg-button>
+</tg-button-row>"""
+        await edit_message(message, msg)
         return
 
     try:
