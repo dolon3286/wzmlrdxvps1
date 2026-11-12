@@ -89,6 +89,8 @@ def clean_rich_to_html(text):
     if not text:
         return ""
     s = str(text)
+    # Convert <br> to \n
+    s = re.sub(r'<br\s*/?>', '\n', s, flags=re.IGNORECASE)
     # Convert 4-column table headers and rows (e.g. Bot Stats)
     s = re.sub(r'<tr>\s*<th>(.*?)</th>\s*<th>(.*?)</th>\s*<th>(.*?)</th>\s*<th>(.*?)</th>\s*</tr>', r'<b>\1</b> | <b>\2</b> | <b>\3</b> | <b>\4</b>\n', s, flags=re.IGNORECASE)
     s = re.sub(r'<tr>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*</tr>', r'\1 | \2 | \3 | \4\n', s, flags=re.IGNORECASE)
@@ -96,8 +98,12 @@ def clean_rich_to_html(text):
     s = re.sub(r'<tr>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*</tr>', r'<b>\1:</b> \2\n', s, flags=re.IGNORECASE)
     # Strip remaining table tags
     s = re.sub(r'</?(table|tbody|tr|th|td)(\s+[^>]*)?>', '', s, flags=re.IGNORECASE)
-    # Strip inside button tags
+    # Strip button rows entirely so button label doesn't leak into body text
+    s = re.sub(r'<tg-button-row(?:\s+[^>]*)?>.*?</tg-button-row>', '', s, flags=re.DOTALL | re.IGNORECASE)
+    s = re.sub(r'<tg-button(?:\s+[^>]*)?>.*?</tg-button>', '', s, flags=re.DOTALL | re.IGNORECASE)
     s = clean_inside_buttons(s)
+    # Safely fix any bare ampersands
+    s = re.sub(r'&(?!(?:amp|lt|gt|quot|#\d+);)', '&amp;', s)
     # Normalize extra blank lines
     s = re.sub(r'\n{3,}', '\n\n', s).strip()
     return s
@@ -237,9 +243,10 @@ async def call_bot_api(method, payload, timeout=10):
 
 async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML"):
     chat_id_int = getattr(chat_id, "id", chat_id)
+    text_fixed = re.sub(r'&(?!(?:amp|lt|gt|quot|#\d+);)', '&amp;', str(text))
     payload = {
         "chat_id": chat_id_int,
-        "rich_message": {"html": text},
+        "rich_message": {"html": text_fixed},
     }
     markup = keyboard_to_bot_api(buttons) if buttons else None
     if markup:
@@ -247,11 +254,11 @@ async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML"):
 
     res = await call_bot_api("sendRichMessage", payload)
     if res and res.get("ok"):
-        return RichBotMessage(res.get("result"), text=text)
+        return RichBotMessage(res.get("result"), text=text_fixed)
 
     # Fallback to sendMessage if sendRichMessage not accepted
     LOGGER.warning("sendRichMessage failed, falling back to sendMessage")
-    clean_text = clean_rich_to_html(text)
+    clean_text = clean_rich_to_html(text_fixed)
     fallback_payload = {
         "chat_id": chat_id_int,
         "text": clean_text,
@@ -261,7 +268,7 @@ async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML"):
     if markup:
         fallback_payload["reply_markup"] = markup
     else:
-        extracted = extract_buttons_from_html(text)
+        extracted = extract_buttons_from_html(text_fixed)
         if extracted:
             fallback_payload["reply_markup"] = extracted
 
@@ -273,39 +280,33 @@ async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML"):
 
 async def edit_rich_message(chat_id, message_id, text, buttons=None, parse_mode="HTML"):
     chat_id_int = getattr(chat_id, "id", chat_id)
+    text_fixed = re.sub(r'&(?!(?:amp|lt|gt|quot|#\d+);)', '&amp;', str(text))
+    clean_text = clean_rich_to_html(text_fixed)
+    markup = keyboard_to_bot_api(buttons) if buttons else None
+    if not markup:
+        markup = extract_buttons_from_html(text_fixed)
+
     payload = {
         "chat_id": chat_id_int,
         "message_id": message_id,
-        "rich_message": {"html": text},
+        "text": clean_text,
+        "rich_message": {"html": text_fixed},
+        "parse_mode": parse_mode,
+        "disable_web_page_preview": True,
     }
-    markup = keyboard_to_bot_api(buttons) if buttons else None
     if markup:
         payload["reply_markup"] = markup
 
     res = await call_bot_api("editMessageText", payload)
     if res and res.get("ok"):
-        return RichBotMessage(res.get("result"), text=text)
+        return RichBotMessage(res.get("result"), text=text_fixed)
     err_str = str(res or "").lower()
     if "message is not modified" in err_str:
-        return RichBotMessage({"message_id": message_id, "chat": {"id": chat_id_int}}, text=text)
+        return RichBotMessage({"message_id": message_id, "chat": {"id": chat_id_int}}, text=text_fixed)
 
     # Fallback without rich_message
-    clean_text = clean_rich_to_html(text)
-    fallback_payload = {
-        "chat_id": chat_id_int,
-        "message_id": message_id,
-        "text": clean_text,
-        "parse_mode": parse_mode,
-        "disable_web_page_preview": True,
-    }
-    if markup:
-        fallback_payload["reply_markup"] = markup
-    else:
-        extracted = extract_buttons_from_html(text)
-        if extracted:
-            fallback_payload["reply_markup"] = extracted
-
-    res = await call_bot_api("editMessageText", fallback_payload)
+    payload.pop("rich_message", None)
+    res = await call_bot_api("editMessageText", payload)
     if res and res.get("ok"):
         return RichBotMessage(res.get("result"), text=clean_text)
     if res and "message is not modified" in str(res).lower():
@@ -324,6 +325,7 @@ async def send_ephemeral_message(
     parse_mode="HTML",
 ):
     chat_id_int = getattr(chat_id, "id", chat_id)
+    text_fixed = re.sub(r'&(?!(?:amp|lt|gt|quot|#\d+);)', '&amp;', str(text))
     payload = {
         "chat_id": chat_id_int,
         "parse_mode": parse_mode,
@@ -344,12 +346,12 @@ async def send_ephemeral_message(
     markup = keyboard_to_bot_api(buttons)
 
     # If inside buttons or table requested, try sendRichMessage
-    if use_inside_buttons or "<tg-button" in text or "<table" in text:
-        rich_html = text
+    if use_inside_buttons or "<tg-button" in text_fixed or "<table" in text_fixed:
+        rich_html = text_fixed
         if use_inside_buttons and markup:
             inside_html = inside_buttons_to_html(markup)
             if inside_html:
-                rich_html = f"{text}\n\n{inside_html}"
+                rich_html = f"{text_fixed}\n\n{inside_html}"
                 markup = None
 
         rich_payload = {
@@ -366,11 +368,11 @@ async def send_ephemeral_message(
             return RichBotMessage(res.get("result"), text=rich_html)
 
     # Standard sendMessage with ephemeral parameters
-    payload["text"] = clean_rich_to_html(text) if ("<table" in text or "<tg-button" in text) else text
+    payload["text"] = clean_rich_to_html(text_fixed) if ("<table" in text_fixed or "<tg-button" in text_fixed) else text_fixed
     if markup:
         payload["reply_markup"] = markup
     else:
-        extracted = extract_buttons_from_html(text)
+        extracted = extract_buttons_from_html(text_fixed)
         if extracted:
             payload["reply_markup"] = extracted
 
@@ -390,6 +392,7 @@ async def edit_ephemeral_message(
     parse_mode="HTML",
 ):
     chat_id_int = getattr(chat_id, "id", chat_id)
+    text_fixed = re.sub(r'&(?!(?:amp|lt|gt|quot|#\d+);)', '&amp;', str(text))
     markup = keyboard_to_bot_api(buttons)
 
     payload = {
@@ -408,16 +411,21 @@ async def edit_ephemeral_message(
     if use_inside_buttons and markup:
         inside_html = inside_buttons_to_html(markup)
         if inside_html:
-            text = f"{text}\n\n{inside_html}"
+            text_fixed = f"{text_fixed}\n\n{inside_html}"
             markup = None
 
-    if "<table" in text or "<tg-button" in text:
-        payload["rich_message"] = {"html": text}
+    if "<table" in text_fixed or "<tg-button" in text_fixed:
+        payload["rich_message"] = {"html": text_fixed}
+        payload["text"] = clean_rich_to_html(text_fixed)
     else:
-        payload["text"] = text
+        payload["text"] = text_fixed
 
     if markup:
         payload["reply_markup"] = markup
+    else:
+        extracted = extract_buttons_from_html(text_fixed)
+        if extracted:
+            payload["reply_markup"] = extracted
 
     # Try editEphemeralMessageText first
     res = await call_bot_api("editEphemeralMessageText", payload)
