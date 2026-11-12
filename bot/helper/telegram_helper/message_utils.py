@@ -31,21 +31,12 @@ from ..ext_utils.bot_utils import SetInterval, download_image_url, fetch_drive_c
 from ..ext_utils.exceptions import TgLinkException
 from ..ext_utils.status_utils import get_readable_message
 from .button_build import ButtonMaker
-from .ephemeral_utils import (
-    send_ephemeral_message,
-    edit_ephemeral_message,
-    clean_inside_buttons,
-)
+from .ephemeral_utils import clean_inside_buttons
 
 
 async def send_message(message, text, buttons=None, block=True, photo=None, **kwargs):
     try:
-        if "<tg-button" in str(text):
-            chat_id = message.chat.id if isinstance(message, Message) else message
-            res = await send_ephemeral_message(chat_id, text, buttons, use_inside_buttons=True)
-            if res:
-                return res
-            text = clean_inside_buttons(text)
+        text = clean_inside_buttons(text)
         if photo:
             try:
                 if photo == "IMAGES":
@@ -162,12 +153,7 @@ async def send_message(message, text, buttons=None, block=True, photo=None, **kw
 
 async def edit_message(message, text, buttons=None, block=True, photo=None):
     try:
-        if "<tg-button" in str(text):
-            chat_id = message.chat.id
-            res = await edit_ephemeral_message(chat_id, message.id, text, buttons, use_inside_buttons=True)
-            if res:
-                return res
-            text = clean_inside_buttons(text)
+        text = clean_inside_buttons(text)
         if message.media:
             if photo:
                 if photo == "IMAGES":
