@@ -19,6 +19,10 @@ from ..helper.telegram_helper.message_utils import (
     delete_message,
     edit_message,
 )
+from ..helper.telegram_helper.ephemeral_utils import (
+    send_ephemeral_message,
+    answer_callback_ephemeral,
+)
 
 
 @new_task
@@ -140,6 +144,17 @@ async def cancel_all_buttons(_, message):
         return
     is_sudo = await CustomFilters.sudo("", message)
     button = create_cancel_buttons(is_sudo, message.from_user.id)
+    if message.chat.type.name != "PRIVATE":
+        res = await send_ephemeral_message(
+            chat_id=message.chat.id,
+            text="Choose tasks to cancel!",
+            buttons=button,
+            receiver_user_id=message.from_user.id,
+            use_inside_buttons=True,
+        )
+        if res:
+            await delete_message(message)
+            return
     can_msg = await send_message(message, "Choose tasks to cancel!", button)
     await auto_delete_message(message, can_msg)
 
@@ -152,20 +167,32 @@ async def cancel_all_update(_, query):
     user_id = int(data[3]) if len(data) > 3 else ""
     is_sudo = await CustomFilters.sudo("", query)
     if not is_sudo and user_id and user_id != query.from_user.id:
-        await query.answer("Not Yours!", show_alert=True)
-    else:
-        await query.answer()
+        await answer_callback_ephemeral(query, "Not Yours!")
+        return
     if data[1] == "close":
+        await query.answer()
         await delete_message(reply_to, message)
     elif data[1] == "back":
         button = create_cancel_buttons(is_sudo, user_id)
-        await edit_message(message, "Choose tasks to cancel!", button)
+        if message.chat.type.name != "PRIVATE":
+            await answer_callback_ephemeral(query, "Choose tasks to cancel!", button, replace=True, use_inside_buttons=True)
+        else:
+            await query.answer()
+            await edit_message(message, "Choose tasks to cancel!", button)
     elif data[1] == "bot":
         button = create_cancel_buttons(is_sudo, "")
-        await edit_message(message, "Choose tasks to cancel!", button)
+        if message.chat.type.name != "PRIVATE":
+            await answer_callback_ephemeral(query, "Choose tasks to cancel!", button, replace=True, use_inside_buttons=True)
+        else:
+            await query.answer()
+            await edit_message(message, "Choose tasks to cancel!", button)
     elif data[1] == "user":
         button = create_cancel_buttons(is_sudo, query.from_user.id)
-        await edit_message(message, "Choose tasks to cancel!", button)
+        if message.chat.type.name != "PRIVATE":
+            await answer_callback_ephemeral(query, "Choose tasks to cancel!", button, replace=True, use_inside_buttons=True)
+        else:
+            await query.answer()
+            await edit_message(message, "Choose tasks to cancel!", button)
     elif data[1] == "ms":
         buttons = button_build.ButtonMaker()
         buttons.data_button("Yes!", f"canall {data[2]} confirm {user_id}", style=ButtonStyle.SUCCESS)
@@ -174,12 +201,19 @@ async def cancel_all_update(_, query):
             "Close", f"canall close confirm {user_id}", style=ButtonStyle.DANGER
         )
         button = buttons.build_menu(2)
-        await edit_message(
-            message, f"Are you sure you want to cancel all {data[2]} tasks", button
-        )
+        confirm_text = f"Are you sure you want to cancel all {data[2]} tasks?"
+        if message.chat.type.name != "PRIVATE":
+            await answer_callback_ephemeral(query, confirm_text, button, replace=True, use_inside_buttons=True)
+        else:
+            await query.answer()
+            await edit_message(message, confirm_text, button)
     else:
         button = create_cancel_buttons(is_sudo, user_id)
-        await edit_message(message, "Choose tasks to cancel.", button)
+        if message.chat.type.name != "PRIVATE":
+            await answer_callback_ephemeral(query, "Choose tasks to cancel.", button, replace=True, use_inside_buttons=True)
+        else:
+            await query.answer()
+            await edit_message(message, "Choose tasks to cancel.", button)
         res = await cancel_all(data[1], user_id)
         if not res:
-            await send_message(reply_to, f"No matching tasks for {data[1]}!")
+            await send_message(reply_to or message, f"No matching tasks for {data[1]}!")

@@ -34,6 +34,10 @@ from ..helper.telegram_helper.message_utils import (
     send_file,
     send_message,
 )
+from ..helper.telegram_helper.ephemeral_utils import (
+    send_ephemeral_message,
+    answer_callback_ephemeral,
+)
 
 handler_dict = {}
 
@@ -1074,7 +1078,10 @@ async def get_user_settings(from_user, stype="main"):
 async def update_user_settings(query, stype="main"):
     handler_dict[query.from_user.id] = False
     msg, button = await get_user_settings(query.from_user, stype)
-    await edit_message(query.message, msg, button)
+    if query.message.chat.type.name != "PRIVATE":
+        await answer_callback_ephemeral(query, msg, button, replace=True, use_inside_buttons=True)
+    else:
+        await edit_message(query.message, msg, button)
 
 
 @new_task
@@ -1082,6 +1089,17 @@ async def send_user_settings(_, message):
     from_user = message.from_user
     handler_dict[from_user.id] = False
     msg, button = await get_user_settings(from_user)
+    if message.chat.type.name != "PRIVATE":
+        res = await send_ephemeral_message(
+            chat_id=message.chat.id,
+            text=msg,
+            buttons=button,
+            receiver_user_id=from_user.id,
+            use_inside_buttons=True,
+        )
+        if res:
+            await delete_message(message)
+            return
     await send_message(message, msg, button)
 
 
