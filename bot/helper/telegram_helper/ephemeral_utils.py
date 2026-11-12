@@ -38,10 +38,25 @@ async def update_cached_rich_countdown(chat_id, message_id, new_last_line):
     idx = cached.find("<tg-button-row")
     body = cached[:idx].rstrip() if idx != -1 else cached.rstrip()
     tail = cached[idx:] if idx != -1 else ""
-    lines = body.split("\n")
-    lines[-1] = new_last_line
-    new_html = "\n".join(lines) + (f"\n\n{tail}" if tail else "")
-    return await edit_rich_message(chat_id, message_id, new_html)
+    time_row_pat = r"<tr><td><b>Time Left(?:\s*:)?</b></td><td>.*?</td></tr>"
+    if re.search(time_row_pat, body):
+        m = re.search(r"(<code>.*?</code>)", str(new_last_line))
+        time_val = m.group(1) if m else str(new_last_line)
+        body = re.sub(
+            time_row_pat,
+            f"<tr><td><b>Time Left</b></td><td>{time_val}</td></tr>",
+            body,
+            count=1,
+        )
+    else:
+        lines = body.split("\n")
+        if lines[-1].strip().lower() == "</table>":
+            lines.insert(-1, str(new_last_line))
+        else:
+            lines[-1] = str(new_last_line)
+        body = "\n".join(lines)
+    new_html = body + (f"\n\n{tail}" if tail else "")
+    return await edit_rich_message(chat_id, message_id, new_html, use_inside_buttons=("<tg-button" in new_html))
 
 
 class RichBotChat:
@@ -389,8 +404,8 @@ async def edit_rich_message(chat_id, message_id, text, buttons=None, parse_mode=
             _cache_rich_html(chat_id_int, message_id, rich_html)
             return RichBotMessage({"message_id": message_id, "chat": {"id": chat_id_int}}, text=rich_html)
 
-    # If inside buttons are desired and editMessageText rejected rich_message, try sendRichMessage swap
-    if use_inside_buttons and has_inside_buttons:
+    # If inside buttons are present and editMessageText rejected rich_message, try sendRichMessage swap
+    if has_inside_buttons:
         send_payload = {
             "chat_id": chat_id_int,
             "rich_message": {"html": rich_html},

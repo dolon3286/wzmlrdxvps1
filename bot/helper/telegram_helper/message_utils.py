@@ -36,10 +36,17 @@ from .ephemeral_utils import clean_inside_buttons, send_rich_message, edit_rich_
 
 async def send_message(message, text, buttons=None, block=True, photo=None, **kwargs):
     try:
+        use_inside_buttons = kwargs.pop("use_inside_buttons", False)
         chat_id = message.chat.id if hasattr(message, "chat") and hasattr(message.chat, "id") else (int(message) if isinstance(message, (int, str)) else 0)
         reply_to_id = getattr(message, "id", None) if isinstance(message, Message) else None
-        if ("<table" in str(text) or "<tg-button" in str(text)) and not photo:
-            rich_msg = await send_rich_message(chat_id, text, buttons, reply_to_message_id=reply_to_id)
+        if (use_inside_buttons or "<table" in str(text) or "<tg-button" in str(text)) and not photo:
+            rich_msg = await send_rich_message(
+                chat_id,
+                text,
+                buttons,
+                use_inside_buttons=use_inside_buttons,
+                reply_to_message_id=reply_to_id,
+            )
             if rich_msg:
                 return rich_msg
 
@@ -162,8 +169,12 @@ async def edit_message(message, text, buttons=None, block=True, photo=None, use_
     try:
         chat_id = message.chat.id if hasattr(message, "chat") and hasattr(message.chat, "id") else 0
         msg_id = getattr(message, "id", None) or getattr(message, "message_id", 0)
+        has_file_media = any(
+            getattr(message, attr, None)
+            for attr in ("photo", "video", "document", "animation", "audio", "voice", "sticker")
+        )
         is_rich = use_inside_buttons or isinstance(message, RichBotMessage) or "<table" in str(text) or "<tg-button" in str(text)
-        if is_rich and not getattr(message, "media", None) and not photo:
+        if is_rich and not has_file_media and not photo:
             rich_msg = await edit_rich_message(chat_id, msg_id, text, buttons, use_inside_buttons=use_inside_buttons or isinstance(message, RichBotMessage))
             if rich_msg:
                 return rich_msg
