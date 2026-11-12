@@ -333,24 +333,23 @@ async def status_pages(_, query):
                 case _:
                     tasks["Download"] += 1
 
-        msg = f"""㊂ <b>Tasks Overview :</b>
-<blockquote expandable>
-┎ <b>Download:</b> {tasks["Download"]} | <b>Upload:</b> {tasks["Upload"]}
-┠ <b>Seed:</b> {tasks["Seed"]} | <b>Archive:</b> {tasks["Archive"]}
-┠ <b>Extract:</b> {tasks["Extract"]} | <b>Split:</b> {tasks["Split"]}
-┠ <b>QueueDL:</b> {tasks["QueueDl"]} | <b>QueueUP:</b> {tasks["QueueUp"]}
-┠ <b>Clone:</b> {tasks["Clone"]} | <b>CheckUp:</b> {tasks["CheckUp"]}
-┠ <b>Paused:</b> {tasks["Pause"]} | <b>SamVideo:</b> {tasks["SamVid"]}
-┞ <b>Convert:</b> {tasks["ConvertMedia"]} | <b>FFmpeg:</b> {tasks["FFmpeg"]}
-│
-┟ <b>Total Download Speed:</b> {get_readable_file_size(dl_speed)}/s
-┠ <b>Total Upload Speed:</b> {get_readable_file_size(up_speed)}/s
-┖ <b>Total Seeding Speed:</b> {get_readable_file_size(seed_speed)}/s
-</blockquote>
-
-<tg-button-row align="center">
-<tg-button type="callback_data" data="status {data[1]} ref" style="primary">Back to Status</tg-button>
-</tg-button-row>"""
+        msg = (
+            '<table border="1">\n'
+            '<tr><th colspan="2">㊂ Tasks Overview</th></tr>\n'
+            '<tr><th>Category</th><th>Count / Speed</th></tr>\n'
+            f'<tr><td><b>Download</b></td><td>{tasks["Download"]} ({get_readable_file_size(dl_speed)}/s)</td></tr>\n'
+            f'<tr><td><b>Upload</b></td><td>{tasks["Upload"]} ({get_readable_file_size(up_speed)}/s)</td></tr>\n'
+            f'<tr><td><b>Seed</b></td><td>{tasks["Seed"]} ({get_readable_file_size(seed_speed)}/s)</td></tr>\n'
+            f'<tr><td><b>Archive / Extract</b></td><td>{tasks["Archive"]} / {tasks["Extract"]}</td></tr>\n'
+            f'<tr><td><b>Split / Clone</b></td><td>{tasks["Split"]} / {tasks["Clone"]}</td></tr>\n'
+            f'<tr><td><b>Queue DL / UP</b></td><td>{tasks["QueueDl"]} / {tasks["QueueUp"]}</td></tr>\n'
+            f'<tr><td><b>Paused / Check</b></td><td>{tasks["Pause"]} / {tasks["CheckUp"]}</td></tr>\n'
+            f'<tr><td><b>Convert / FFmpeg</b></td><td>{tasks["ConvertMedia"]} / {tasks["FFmpeg"]}</td></tr>\n'
+            '</table>\n\n'
+            '<tg-button-row align="center">\n'
+            f'<tg-button type="callback_data" data="status {data[1]} ref" style="primary">Back to Status</tg-button>\n'
+            '</tg-button-row>'
+        )
         button = ButtonMaker()
         button.data_button("Back to Status", f"status {data[1]} ref", style=ButtonStyle.PRIMARY)
         edited = await edit_message(message, msg, button.build_menu())

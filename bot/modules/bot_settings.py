@@ -5,6 +5,7 @@ from asyncio import (
     sleep,
 )
 from ast import literal_eval
+from html import escape
 from pyrogram.enums import ButtonStyle
 from functools import partial
 from io import BytesIO
@@ -299,29 +300,63 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
         buttons.data_button("Sabnzbd Settings", "botset nzb")
         buttons.data_button("JDownloader Sync", "botset syncjd")
         buttons.data_button("Close", "botset close", style=ButtonStyle.DANGER)
-        msg = "Bot Settings:"
+        msg = (
+            '<table border="1">\n'
+            '<tr><th colspan="2">⌬ Bot Settings</th></tr>\n'
+            '<tr><td><b>Menu</b></td><td>Configure bot variables, modules, private files, and clients.</td></tr>\n'
+            '</table>'
+        )
     elif edit_type is not None:
         if edit_type == "ariavar":
             buttons.data_button("Back", "botset aria", style=ButtonStyle.PRIMARY)
             if key != "newkey":
                 buttons.data_button("Empty String", f"botset emptyaria {key}")
             buttons.data_button("Close", "botset close", style=ButtonStyle.DANGER)
-            msg = (
-                "<i>Send a key with value.</i> Example: <code>https-proxy-user:value</code>\n┖ <b>Time Left :</b> <code>60 sec</code>"
-                if key == "newkey"
-                else f"<i>Send a valid value for <code>{key}</code>.</i> Current value is <code>{aria2_options[key]}</code>\n┖ <b>Time Left :</b> <code>60 sec</code>"
-            )
+            if key == "newkey":
+                msg = (
+                    '<table border="1">\n'
+                    '<tr><th colspan="2">⌬ Edit Aria2c Key</th></tr>\n'
+                    '<tr><td><b>Instruction</b></td><td><i>Send a key with value.</i> Example: <code>https-proxy-user:value</code></td></tr>\n'
+                    '<tr><td><b>Time Left</b></td><td><code>60 sec</code></td></tr>\n'
+                    '</table>'
+                )
+            else:
+                msg = (
+                    '<table border="1">\n'
+                    '<tr><th colspan="2">⌬ Edit Aria2c Key</th></tr>\n'
+                    f'<tr><td><b>Key</b></td><td><code>{escape(str(key))}</code></td></tr>\n'
+                    f'<tr><td><b>Current Value</b></td><td><code>{escape(str(aria2_options[key]))}</code></td></tr>\n'
+                    '<tr><td><b>Instruction</b></td><td><i>Send a valid value for this key.</i></td></tr>\n'
+                    '<tr><td><b>Time Left</b></td><td><code>60 sec</code></td></tr>\n'
+                    '</table>'
+                )
         elif edit_type == "qbitvar":
             buttons.data_button("Back", "botset qbit", style=ButtonStyle.PRIMARY)
             buttons.data_button("Empty String", f"botset emptyqbit {key}")
             buttons.data_button("Close", "botset close", style=ButtonStyle.DANGER)
-            msg = f"<i>Send a valid value for <code>{key}</code>.</i> Current value is <code>{qbit_options[key]}</code>\n┖ <b>Time Left :</b> <code>60 sec</code>"
+            msg = (
+                '<table border="1">\n'
+                '<tr><th colspan="2">⌬ Edit qBittorrent Key</th></tr>\n'
+                f'<tr><td><b>Key</b></td><td><code>{escape(str(key))}</code></td></tr>\n'
+                f'<tr><td><b>Current Value</b></td><td><code>{escape(str(qbit_options[key]))}</code></td></tr>\n'
+                '<tr><td><b>Instruction</b></td><td><i>Send a valid value for this key.</i></td></tr>\n'
+                '<tr><td><b>Time Left</b></td><td><code>60 sec</code></td></tr>\n'
+                '</table>'
+            )
         elif edit_type == "nzbvar":
             buttons.data_button("Back", "botset nzb", style=ButtonStyle.PRIMARY)
             buttons.data_button("Default", f"botset resetnzb {key}")
             buttons.data_button("Empty String", f"botset emptynzb {key}")
             buttons.data_button("Close", "botset close", style=ButtonStyle.DANGER)
-            msg = f"<i>Send a valid value for <code>{key}</code>.</i> Current value is <code>{nzb_options[key]}</code>\nIf the value is list then separate them by space or ,\nExample: <code>.exe,info</code> or <code>.exe .info</code>\n┖ <b>Time Left :</b> <code>60 sec</code>"
+            msg = (
+                '<table border="1">\n'
+                '<tr><th colspan="2">⌬ Edit SABnzbd Key</th></tr>\n'
+                f'<tr><td><b>Key</b></td><td><code>{escape(str(key))}</code></td></tr>\n'
+                f'<tr><td><b>Current Value</b></td><td><code>{escape(str(nzb_options[key]))}</code></td></tr>\n'
+                '<tr><td><b>Instruction</b></td><td><i>Send a valid value. Separate lists by space or comma.</i> Example: <code>.exe,info</code></td></tr>\n'
+                '<tr><td><b>Time Left</b></td><td><code>60 sec</code></td></tr>\n'
+                '</table>'
+            )
         elif edit_type.startswith("nzbsevar"):
             index = 0 if key == "newser" else int(edit_type.replace("nzbsevar", ""))
             buttons.data_button("Back", f"botset nzbser{index}", style=ButtonStyle.PRIMARY)
@@ -329,16 +364,36 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
                 buttons.data_button("Empty", f"botset emptyserkey {index} {key}")
             buttons.data_button("Close", "botset close", style=ButtonStyle.DANGER)
             if key == "newser":
-                msg = "<i>Send one server as dictionary <code>{}</code>, like in config.py without <code>[]</code>.</i>\n┖ <b>Time Left :</b> <code>60 sec</code>"
+                msg = (
+                    '<table border="1">\n'
+                    '<tr><th colspan="2">⌬ Add Usenet Server</th></tr>\n'
+                    '<tr><td><b>Instruction</b></td><td><i>Send one server as dictionary <code>{}</code>, like in config.py without <code>[]</code>.</i></td></tr>\n'
+                    '<tr><td><b>Time Left</b></td><td><code>60 sec</code></td></tr>\n'
+                    '</table>'
+                )
             else:
-                msg = f"<i>Send a valid value for <code>{key}</code> in server <code>{Config.USENET_SERVERS[index]['name']}</code>.</i> Current value is <code>{Config.USENET_SERVERS[index][key]}</code>\n┖ <b>Time Left :</b> <code>60 sec</code>"
+                msg = (
+                    '<table border="1">\n'
+                    f'<tr><th colspan="2">⌬ Edit Server: {escape(str(Config.USENET_SERVERS[index]["name"]))}</th></tr>\n'
+                    f'<tr><td><b>Key</b></td><td><code>{escape(str(key))}</code></td></tr>\n'
+                    f'<tr><td><b>Current Value</b></td><td><code>{escape(str(Config.USENET_SERVERS[index][key]))}</code></td></tr>\n'
+                    '<tr><td><b>Time Left</b></td><td><code>60 sec</code></td></tr>\n'
+                    '</table>'
+                )
         elif edit_type == "editvar":
-            msg = f"<b>Variable:</b> <code>{key}</code>\n\n"
-            msg += f"<b>Description:</b> {DEFAULT_DESP.get(key, 'No Description Provided')}\n\n"
             value = Config.get(key)
             if value == "":
                 value = "None"
-            msg += f"<b>Current Value:</b> <code>{value}</code>\n\n"
+            val_str = str(value)
+            if len(val_str) > 120:
+                val_str = val_str[:117] + "..."
+            msg = (
+                '<table border="1">\n'
+                '<tr><th colspan="2">⌬ Config Variable</th></tr>\n'
+                f'<tr><td><b>Variable</b></td><td><code>{escape(str(key))}</code></td></tr>\n'
+                f'<tr><td><b>Description</b></td><td>{escape(str(DEFAULT_DESP.get(key, "No Description Provided")))}</td></tr>\n'
+                f'<tr><td><b>Current Value</b></td><td><code>{escape(val_str)}</code></td></tr>\n'
+            )
             buttons.data_button(
                 "View Value", f"botset showvar {key}", position="header"
             )
@@ -351,37 +406,62 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
                 else:
                     buttons.data_button("Stop Edit", f"botset editvar {key}")
             else:
-                msg += "<i>Choose a valid value for the above Var</i>\n\n"
+                msg += '<tr><td><b>Action</b></td><td><i>Choose a valid value for this variable</i></td></tr>\n'
                 buttons.data_button("True", f"botset boolvar {key} on")
                 buttons.data_button("False", f"botset boolvar {key} off")
             if key not in BOOL_VARS and key not in PROTECTED_VARS:
                 buttons.data_button("Reset", f"botset resetvar {key}")
             buttons.data_button("Close", "botset close", position="footer", style=ButtonStyle.DANGER)
             if edit_mode and key in RESTART_VARS:
-                msg += "\n<b>Note:</b> Restart required for this edit to take effect!\n\n"
+                msg += '<tr><td><b>Note</b></td><td>Restart required for this edit to take effect!</td></tr>\n'
             if edit_mode and key not in BOOL_VARS:
-                msg += "<i>Send a valid value for the above Var.</i>\n┖ <b>Time Left :</b> <code>60 sec</code>"
+                msg += (
+                    '<tr><td><b>Instruction</b></td><td><i>Send a valid value for the above Var.</i></td></tr>\n'
+                    '<tr><td><b>Time Left</b></td><td><code>60 sec</code></td></tr>\n'
+                )
+            msg += '</table>'
     elif key == "var":
         conf_dict = {
             k: v for k, v in Config.get_all().items() if not k.startswith("DISABLE_")
         }
         all_keys = list(conf_dict.keys())
         page_size = 4
-        for k in all_keys[start : start + page_size]:
+        page_keys = all_keys[start : start + page_size]
+        rows = []
+        for k in page_keys:
             buttons.data_button(k, f"botset editvar {k}")
+            v_str = str(conf_dict[k])
+            if v_str == "":
+                v_str = "None"
+            elif len(v_str) > 40:
+                v_str = v_str[:37] + "..."
+            rows.append(f'<tr><td><code>{escape(str(k))}</code></td><td><code>{escape(v_str)}</code></td></tr>\n')
         page_str = _add_page_footer(buttons, "var", start, page_size, len(all_keys))
-        msg = f"⌬ <b><u>Config Variables</u></b> | <b><u>Page: {page_str}</u></b>"
+        msg = (
+            '<table border="1">\n'
+            f'<tr><th colspan="2">⌬ Config Variables | Page: {page_str}</th></tr>\n'
+            + "".join(rows)
+            + '</table>'
+        )
     elif key == "setonoff":
         page_size = 4
+        rows = []
         for k in ONOFF_VARS[start : start + page_size]:
             val = Config.get(k)
             label = k.removeprefix("DISABLE_")
             if not val:
                 buttons.data_button(f"✓ {label}", f"botset toggleonoff {k} on")
+                rows.append(f'<tr><td><b>{escape(label)}</b></td><td>Enabled ✓</td></tr>\n')
             else:
                 buttons.data_button(label, f"botset toggleonoff {k} off")
+                rows.append(f'<tr><td><b>{escape(label)}</b></td><td>Disabled ✗</td></tr>\n')
         page_str = _add_page_footer(buttons, "setonoff", start, page_size, len(ONOFF_VARS))
-        msg = f"⌬ <b><u>Module Settings</u></b> | <b><u>Page: {page_str}</u></b>"
+        msg = (
+            '<table border="1">\n'
+            f'<tr><th colspan="2">⌬ Module Settings | Page: {page_str}</th></tr>\n'
+            + "".join(rows)
+            + '</table>'
+        )
     elif key == "private":
         if edit_mode:
             buttons.data_button("Stop Invoke File", "botset private stop", "header")
@@ -392,9 +472,9 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
         buttons.data_button(
             "Close", "botset close", position="footer", style=ButtonStyle.DANGER
         )
-        txt = "\n┠ ".join(
+        file_rows = "".join(
             [
-                f"<code>{fn}</code> → <b>{'Exists' if await aiopath.isfile(fn) else 'Not Exists'}</b>"
+                f'<tr><td><code>{fn}</code></td><td><b>{"Exists" if await aiopath.isfile(fn) else "Not Exists"}</b></td></tr>\n'
                 for fn in [
                     "config.py",
                     "token.pickle",
@@ -408,53 +488,86 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
                 ]
             ]
         )
-        msg = f"""⌬ <b>Private File Settings</b>
-┠ <b>Dashboard :</b> 
-┃
-┠ {txt}
-┃
-┠ <b>Delete File</b> → Send the file name as text message, Like <code>rclone.conf</code>.
-┃
-┖ <b>Note:</b> Changing .netrc will not take effect for aria2c until restart."""
+        msg = (
+            '<table border="1">\n'
+            '<tr><th colspan="2">⌬ Private File Settings</th></tr>\n'
+            + file_rows
+            + '<tr><td><b>Delete File</b></td><td>Send the file name as text message, like <code>rclone.conf</code>.</td></tr>\n'
+            '<tr><td><b>Note</b></td><td>Changing <code>.netrc</code> will not take effect for aria2c until restart.</td></tr>\n'
+        )
         if edit_mode:
-            msg += "\n\n<i>Send the file name to delete the file, file to save the file & for new file create, follow below format.</i> \n\n<b>Format:</b> \n<code>file_name\n\ncontents of file</code>\n┖ <b>Time Left :</b> <code>60 sec</code>"
+            msg += (
+                '<tr><td><b>Format</b></td><td><i>Send file name to delete, file to save, or new file:</i><br><code>file_name</code><br><code>contents of file</code></td></tr>\n'
+                '<tr><td><b>Time Left</b></td><td><code>60 sec</code></td></tr>\n'
+            )
+        msg += '</table>'
     elif key == "aria":
         aria_keys = [k for k in aria2_options.keys() if k not in ["checksum", "index-out", "out", "pause", "select-file"]]
         page_size = 2
+        rows = []
         for k in aria_keys[start : start + page_size]:
             buttons.data_button(k, f"botset ariavar {k}")
+            rows.append(f'<tr><td><code>{escape(str(k))}</code></td><td><code>{escape(str(aria2_options[k]))}</code></td></tr>\n')
         buttons.data_button("Edit" if state == "view" else "View", f"botset {'edit' if state == 'view' else 'view'} aria")
         buttons.data_button("Add new key", "botset ariavar newkey")
         page_str = _add_page_footer(buttons, "aria", start, page_size, len(aria_keys))
-        msg = f"Aria2c Options | Page: {page_str} | State: {state}"
+        msg = (
+            '<table border="1">\n'
+            f'<tr><th colspan="2">⌬ Aria2c Options | Page: {page_str} | State: {state}</th></tr>\n'
+            + "".join(rows)
+            + '</table>'
+        )
     elif key == "qbit":
         qbit_keys = list(qbit_options.keys())
         page_size = 2
+        rows = []
         for k in qbit_keys[start : start + page_size]:
             buttons.data_button(k, f"botset qbitvar {k}")
+            rows.append(f'<tr><td><code>{escape(str(k))}</code></td><td><code>{escape(str(qbit_options[k]))}</code></td></tr>\n')
         buttons.data_button("Edit" if state == "view" else "View", f"botset {'edit' if state == 'view' else 'view'} qbit")
         buttons.data_button("Sync Qbittorrent", "botset syncqbit")
         page_str = _add_page_footer(buttons, "qbit", start, page_size, len(qbit_keys))
-        msg = f"Qbittorrent Options | Page: {page_str} | State: {state}"
+        msg = (
+            '<table border="1">\n'
+            f'<tr><th colspan="2">⌬ qBittorrent Options | Page: {page_str} | State: {state}</th></tr>\n'
+            + "".join(rows)
+            + '</table>'
+        )
     elif key == "nzb":
         nzb_keys = list(nzb_options.keys())
         page_size = 1
+        rows = []
         for k in nzb_keys[start : start + page_size]:
             buttons.data_button(k, f"botset nzbvar {k}")
+            rows.append(f'<tr><td><code>{escape(str(k))}</code></td><td><code>{escape(str(nzb_options[k]))}</code></td></tr>\n')
         buttons.data_button("Edit" if state == "view" else "View", f"botset {'edit' if state == 'view' else 'view'} nzb")
         buttons.data_button("Servers", "botset nzbserver")
         buttons.data_button("Sync Sabnzbd", "botset syncnzb")
         page_str = _add_page_footer(buttons, "nzb", start, page_size, len(nzb_keys))
-        msg = f"Sabnzbd Options | Page: {page_str} | State: {state}"
+        msg = (
+            '<table border="1">\n'
+            f'<tr><th colspan="2">⌬ SABnzbd Options | Page: {page_str} | State: {state}</th></tr>\n'
+            + "".join(rows)
+            + '</table>'
+        )
     elif key == "nzbserver":
         servers = Config.USENET_SERVERS if isinstance(Config.USENET_SERVERS, list) else []
         page_size = 3
+        rows = []
         if len(servers) > 0:
             for index, k in enumerate(servers[start : start + page_size], start=start):
                 buttons.data_button(k["name"], f"botset nzbser{index}")
+                rows.append(f'<tr><td><b>{escape(str(k["name"]))}</b></td><td><code>{escape(str(k.get("host", "")))}</code></td></tr>\n')
+        else:
+            rows.append('<tr><td><b>Servers</b></td><td>None configured</td></tr>\n')
         buttons.data_button("Add New", "botset nzbsevar newser")
         page_str = _add_page_footer(buttons, "nzbserver", start, page_size, len(servers), back_cb="botset nzb")
-        msg = f"Usenet Servers | Page: {page_str} | State: {state}"
+        msg = (
+            '<table border="1">\n'
+            f'<tr><th colspan="2">⌬ Usenet Servers | Page: {page_str} | State: {state}</th></tr>\n'
+            + "".join(rows)
+            + '</table>'
+        )
     elif key.startswith("nzbser"):
         servers = Config.USENET_SERVERS if isinstance(Config.USENET_SERVERS, list) else []
         index = int(key.replace("nzbser", ""))
@@ -462,27 +575,38 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
             return await get_buttons("nzbserver")
         ser_keys = list(servers[index].keys())
         page_size = 2
+        rows = []
         for k in ser_keys[start : start + page_size]:
             buttons.data_button(k, f"botset nzbsevar{index} {k}")
+            rows.append(f'<tr><td><code>{escape(str(k))}</code></td><td><code>{escape(str(servers[index][k]))}</code></td></tr>\n')
         buttons.data_button("Edit" if state == "view" else "View", f"botset {'edit' if state == 'view' else 'view'} {key}")
         buttons.data_button("Remove Server", f"botset remser {index}")
         page_str = _add_page_footer(buttons, key, start, page_size, len(ser_keys), back_cb="botset nzbserver")
-        msg = f"Server Keys | Page: {page_str} | State: {state}"
+        msg = (
+            '<table border="1">\n'
+            f'<tr><th colspan="2">⌬ Server Keys | Page: {page_str} | State: {state}</th></tr>\n'
+            + "".join(rows)
+            + '</table>'
+        )
     else:
-        msg = "Unknown option"
+        msg = '<table border="1"><tr><th>⌬ Bot Settings</th></tr><tr><td>Unknown option</td></tr></table>'
 
-    return msg, buttons.build_menu(1 if key is None else 2)
+    return msg, buttons.build_menu(2)
 
 
 async def update_buttons(message, key=None, edit_type=None, edit_mode=False):
     msg, button = await get_buttons(key, edit_type, edit_mode)
     from ..helper.telegram_helper.ephemeral_utils import edit_rich_message
     msg_id = getattr(message, "id", None) or getattr(message, "message_id", None)
-    if msg_id and not getattr(message, "media", None):
+    has_file_media = any(
+        getattr(message, attr, None)
+        for attr in ("photo", "video", "document", "animation", "audio", "voice", "sticker")
+    )
+    if msg_id and not has_file_media:
         res = await edit_rich_message(message.chat.id, msg_id, msg, button, use_inside_buttons=True)
         if res:
             return
-    await edit_message(message, msg, button)
+    await edit_message(message, msg, button, use_inside_buttons=True)
 
 
 @new_task
