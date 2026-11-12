@@ -37,8 +37,9 @@ from .ephemeral_utils import clean_inside_buttons, send_rich_message, edit_rich_
 async def send_message(message, text, buttons=None, block=True, photo=None, **kwargs):
     try:
         chat_id = message.chat.id if hasattr(message, "chat") and hasattr(message.chat, "id") else (int(message) if isinstance(message, (int, str)) else 0)
+        reply_to_id = getattr(message, "id", None) if isinstance(message, Message) else None
         if ("<table" in str(text) or "<tg-button" in str(text)) and not photo:
-            rich_msg = await send_rich_message(chat_id, text, buttons)
+            rich_msg = await send_rich_message(chat_id, text, buttons, reply_to_message_id=reply_to_id)
             if rich_msg:
                 return rich_msg
 

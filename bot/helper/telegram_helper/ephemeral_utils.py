@@ -261,7 +261,11 @@ def inside_buttons_to_html(reply_markup, align="center"):
                 safe_wa = escape(str(wa_url), quote=True)
                 row_tags.append(f'<tg-button type="web_app" url="{safe_wa}"{style_str}>{safe_text}</tg-button>')
         if row_tags:
-            html_blocks.append(f'<tg-button-row{align_attr}>' + "".join(row_tags) + '</tg-button-row>')
+            if len(row_tags) > 8:
+                for i in range(0, len(row_tags), 4):
+                    html_blocks.append(f'<tg-button-row{align_attr}>' + "".join(row_tags[i : i + 4]) + '</tg-button-row>')
+            else:
+                html_blocks.append(f'<tg-button-row{align_attr}>' + "".join(row_tags) + '</tg-button-row>')
     return "\n".join(html_blocks)
 
 
@@ -288,7 +292,7 @@ def _normalize_rich_html(text):
     return text_fixed
 
 
-async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML", use_inside_buttons=False):
+async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML", use_inside_buttons=False, reply_to_message_id=None):
     chat_id_int = getattr(chat_id, "id", chat_id)
     rich_html = _normalize_rich_html(text)
     markup = keyboard_to_bot_api(buttons) if buttons else None
@@ -303,6 +307,11 @@ async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML", use_
         "chat_id": chat_id_int,
         "rich_message": {"html": rich_html},
     }
+    if reply_to_message_id:
+        payload["reply_parameters"] = {
+            "message_id": int(reply_to_message_id),
+            "allow_sending_without_reply": True,
+        }
     if markup and not has_inside_buttons:
         payload["reply_markup"] = markup
 
@@ -321,6 +330,11 @@ async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML", use_
         "parse_mode": parse_mode,
         "disable_web_page_preview": True,
     }
+    if reply_to_message_id:
+        fallback_payload["reply_parameters"] = {
+            "message_id": int(reply_to_message_id),
+            "allow_sending_without_reply": True,
+        }
     fallback_markup = markup or extract_buttons_from_html(rich_html)
     if fallback_markup:
         fallback_payload["reply_markup"] = fallback_markup
@@ -363,8 +377,8 @@ async def edit_rich_message(chat_id, message_id, text, buttons=None, parse_mode=
         _cache_rich_html(chat_id_int, message_id, rich_html)
         return RichBotMessage({"message_id": message_id, "chat": {"id": chat_id_int}}, text=rich_html)
 
-    # Secondary rich edit attempt if Bot API requires text parameter alongside rich_message
-    if "text" in err_str and "required" in err_str:
+    # Secondary rich edit attempt if Bot API rejects missing/empty text parameter
+    if any(k in err_str for k in ("text", "empty", "missing", "required")):
         payload["text"] = clean_text
         res = await call_bot_api("editMessageText", payload)
         if res and res.get("ok"):
@@ -374,6 +388,23 @@ async def edit_rich_message(chat_id, message_id, text, buttons=None, parse_mode=
         if res and "message is not modified" in str(res).lower():
             _cache_rich_html(chat_id_int, message_id, rich_html)
             return RichBotMessage({"message_id": message_id, "chat": {"id": chat_id_int}}, text=rich_html)
+
+    # If inside buttons are desired and editMessageText rejected rich_message, try sendRichMessage swap
+    if use_inside_buttons and has_inside_buttons:
+        send_payload = {
+            "chat_id": chat_id_int,
+            "rich_message": {"html": rich_html},
+        }
+        send_res = await call_bot_api("sendRichMessage", send_payload)
+        if send_res and send_res.get("ok"):
+            new_msg = RichBotMessage(send_res.get("result"), text=rich_html)
+            _cache_rich_html(chat_id_int, new_msg.id, rich_html)
+            try:
+                from ...core.tg_client import TgClient
+                await TgClient.bot.delete_messages(chat_id_int, message_id)
+            except Exception:
+                pass
+            return new_msg
 
     # Fallback without rich_message
     fallback_payload = {
