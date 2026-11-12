@@ -240,8 +240,6 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         status_dict[sid]["page_no"] = page_no
     start_position = (page_no - 1) * STATUS_LIMIT
 
-    from ..telegram_helper.bot_commands import BotCommands
-
     for index, task in enumerate(
         tasks[start_position : STATUS_LIMIT + start_position], start=1
     ):
@@ -317,7 +315,6 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         msg += f"<tr><td>{EM_13} Engine</td><td>{task.engine}</td></tr>\n"
         msg += f"<tr><td>{EM_7} In Mode</td><td>{task.listener.mode[0]}</td></tr>\n"
         msg += f"<tr><td>{EM_8} Out Mode</td><td>{task.listener.mode[1]}</td></tr>\n"
-        msg += f"<tr><td>{EM_9} Stop</td><td>/{BotCommands.CancelTaskCommand[1]}_{gid_short}</td></tr>\n"
         msg += "</table>\n"
 
         # Buttons Inside Message right under task table
