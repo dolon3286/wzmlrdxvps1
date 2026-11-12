@@ -1,6 +1,7 @@
 from psutil import cpu_percent, virtual_memory, disk_usage
 from time import time
 from asyncio import gather, iscoroutinefunction
+from html import escape
 
 from pyrogram.errors import QueryIdInvalid
 from pyrogram.enums import ButtonStyle
@@ -130,6 +131,9 @@ async def status_pages(_, query):
         ):
             await query.answer("This task is not for you!", show_alert=True)
             return
+        btn = ButtonMaker()
+        btn.data_button("Yes, Cancel", f"status {key} canconf {gid}", style=ButtonStyle.DANGER)
+        btn.data_button("No, Back", f"status {key} ref", style=ButtonStyle.PRIMARY)
         prompt_text = (
             f"<b>Cancel Task Confirmation</b>\n\n"
             f"<table border=\"1\">\n"
@@ -146,6 +150,7 @@ async def status_pages(_, query):
         await send_ephemeral_message(
             chat_id=query.message.chat.id,
             text=prompt_text,
+            buttons=btn.build_menu(2),
             callback_query_id=query.id,
             receiver_user_id=user_id,
             use_inside_buttons=True,
@@ -318,23 +323,27 @@ async def status_pages(_, query):
                 case _:
                     tasks["Download"] += 1
 
-        msg = f"""㊂ <b>Tasks Overview</b> :
-<table border="1">
-<tr><th>Category</th><th>Count / Speed</th></tr>
-<tr><td><b>Download</b></td><td>{tasks["Download"]} ({get_readable_file_size(dl_speed)}/s)</td></tr>
-<tr><td><b>Upload</b></td><td>{tasks["Upload"]} ({get_readable_file_size(up_speed)}/s)</td></tr>
-<tr><td><b>Seed</b></td><td>{tasks["Seed"]} ({get_readable_file_size(seed_speed)}/s)</td></tr>
-<tr><td><b>Archive / Extract</b></td><td>{tasks["Archive"]} / {tasks["Extract"]}</td></tr>
-<tr><td><b>Split / Clone</b></td><td>{tasks["Split"]} / {tasks["Clone"]}</td></tr>
-<tr><td><b>Queue DL / UP</b></td><td>{tasks["QueueDl"]} / {tasks["QueueUp"]}</td></tr>
-<tr><td><b>Paused / Check</b></td><td>{tasks["Pause"]} / {tasks["CheckUp"]}</td></tr>
-<tr><td><b>Convert / FFmpeg</b></td><td>{tasks["ConvertMedia"]} / {tasks["FFmpeg"]}</td></tr>
-</table>
+        msg = f"""㊂ <b>Tasks Overview :</b>
+<blockquote expandable>
+┎ <b>Download:</b> {tasks["Download"]} | <b>Upload:</b> {tasks["Upload"]}
+┠ <b>Seed:</b> {tasks["Seed"]} | <b>Archive:</b> {tasks["Archive"]}
+┠ <b>Extract:</b> {tasks["Extract"]} | <b>Split:</b> {tasks["Split"]}
+┠ <b>QueueDL:</b> {tasks["QueueDl"]} | <b>QueueUP:</b> {tasks["QueueUp"]}
+┠ <b>Clone:</b> {tasks["Clone"]} | <b>CheckUp:</b> {tasks["CheckUp"]}
+┠ <b>Paused:</b> {tasks["Pause"]} | <b>SamVideo:</b> {tasks["SamVid"]}
+┞ <b>Convert:</b> {tasks["ConvertMedia"]} | <b>FFmpeg:</b> {tasks["FFmpeg"]}
+│
+┟ <b>Total Download Speed:</b> {get_readable_file_size(dl_speed)}/s
+┠ <b>Total Upload Speed:</b> {get_readable_file_size(up_speed)}/s
+┖ <b>Total Seeding Speed:</b> {get_readable_file_size(seed_speed)}/s
+</blockquote>
 
 <tg-button-row align="center">
 <tg-button type="callback_data" data="status {data[1]} ref" style="primary">Back to Status</tg-button>
 </tg-button-row>"""
-        await edit_message(message, msg)
+        button = ButtonMaker()
+        button.data_button("Back to Status", f"status {data[1]} ref", style=ButtonStyle.PRIMARY)
+        await edit_message(message, msg, button.build_menu())
         return
 
     try:
