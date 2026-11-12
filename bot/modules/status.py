@@ -101,6 +101,11 @@ async def status_pages(_, query):
     key = int(data[1])
     if data[2] == "ref":
         await update_status_message(key, force=True)
+        try:
+            await query.answer("Status refreshed!")
+        except QueryIdInvalid:
+            pass
+        return
     elif data[2] in ["nex", "pre"]:
         async with task_dict_lock:
             if key in status_dict:
@@ -131,37 +136,41 @@ async def status_pages(_, query):
         ):
             await query.answer("This task is not for you!", show_alert=True)
             return
-        btn = ButtonMaker()
-        btn.data_button("Yes, Cancel", f"status {key} canconf {gid}", style=ButtonStyle.DANGER)
-        btn.data_button("No, Back", f"status {key} ref", style=ButtonStyle.PRIMARY)
         prompt_text = (
             f"<b>Cancel Task Confirmation</b>\n\n"
             f"<table border=\"1\">\n"
             f"<tr><td><b>Task</b></td><td>{escape(task.name())}</td></tr>\n"
             f"<tr><td><b>GID</b></td><td><code>{gid}</code></td></tr>\n"
             f"</table>\n\n"
-            f"<i>Are you sure you want to cancel this task?</i>\n"
+            f"<i>Are you sure you want to cancel this task?</i>\n\n"
             f"<tg-button-row align=\"center\">"
             f"<tg-button type=\"callback_data\" data=\"status {key} canconf {gid}\" style=\"danger\">Yes, Cancel</tg-button>"
-            f"<tg-button type=\"callback_data\" data=\"status {key} ref\" style=\"primary\">No, Back</tg-button>"
+            f"<tg-button type=\"callback_data\" data=\"status {key} canno\" style=\"primary\">No, Back</tg-button>"
             f"</tg-button-row>"
         )
-        from ..helper.telegram_helper.ephemeral_utils import send_ephemeral_message
-        await send_ephemeral_message(
+        from ..helper.telegram_helper.ephemeral_utils import send_rich_message
+        from ..helper.telegram_helper.message_utils import auto_delete_message
+        await query.answer()
+        conf_msg = await send_rich_message(
             chat_id=query.message.chat.id,
             text=prompt_text,
-            buttons=btn.build_menu(2),
-            callback_query_id=query.id,
-            receiver_user_id=user_id,
-            use_inside_buttons=True,
         )
+        if conf_msg:
+            await auto_delete_message(conf_msg, time=30)
+        return
+    elif data[2] == "canno":
+        from ..helper.telegram_helper.message_utils import delete_message
+        await query.answer("Cancelled!")
+        await delete_message(query.message)
         return
     elif data[2] == "canconf":
+        from ..helper.telegram_helper.message_utils import delete_message
         user_id = query.from_user.id
         gid = data[3]
         task = await get_task_by_gid(gid)
         if task is None:
             await query.answer(f"Task with GID {gid} already finished or cancelled!", show_alert=True)
+            await delete_message(query.message)
             await update_status_message(key, force=True)
             return
         if (
@@ -175,6 +184,7 @@ async def status_pages(_, query):
         obj = task.task()
         await obj.cancel_task()
         await query.answer(f"Task Cancelled: {task_name}", show_alert=True)
+        await delete_message(query.message)
         await update_status_message(key, force=True)
         return
     elif data[2] == "sel":
@@ -222,13 +232,13 @@ async def status_pages(_, query):
                 "<b>Download Paused!</b>\n\n"
                 "<i>Select your files &amp; press <b>Done Selecting</b> to start.</i>"
             )
-            from ..helper.telegram_helper.ephemeral_utils import send_ephemeral_message
-            await send_ephemeral_message(
+            from ..helper.telegram_helper.ephemeral_utils import send_rich_message
+            await query.answer()
+            await send_rich_message(
                 chat_id=query.message.chat.id,
                 text=msg,
                 buttons=SBUTTONS,
-                callback_query_id=query.id,
-                receiver_user_id=user_id,
+                use_inside_buttons=True,
             )
             return
         except Exception as e:
@@ -343,7 +353,16 @@ async def status_pages(_, query):
 </tg-button-row>"""
         button = ButtonMaker()
         button.data_button("Back to Status", f"status {data[1]} ref", style=ButtonStyle.PRIMARY)
-        await edit_message(message, msg, button.build_menu())
+        edited = await edit_message(message, msg, button.build_menu())
+        async with task_dict_lock:
+            if key in status_dict:
+                if edited and not isinstance(edited, str):
+                    status_dict[key]["message"] = edited
+                status_dict[key]["message"].text = "__OV__"
+        try:
+            await query.answer()
+        except QueryIdInvalid:
+            pass
         return
 
     try:

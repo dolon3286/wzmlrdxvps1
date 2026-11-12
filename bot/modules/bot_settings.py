@@ -500,6 +500,12 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
 
 async def update_buttons(message, key=None, edit_type=None, edit_mode=False):
     msg, button = await get_buttons(key, edit_type, edit_mode)
+    from ..helper.telegram_helper.ephemeral_utils import edit_rich_message
+    msg_id = getattr(message, "id", None) or getattr(message, "message_id", None)
+    if msg_id and not getattr(message, "media", None):
+        res = await edit_rich_message(message.chat.id, msg_id, msg, button, use_inside_buttons=True)
+        if res:
+            return
     await edit_message(message, msg, button)
 
 
@@ -1343,16 +1349,15 @@ async def send_bot_settings(_, message):
     handler_dict[message.chat.id] = False
     msg, button = await get_buttons()
     globals()["start"] = 0
-    if message.chat.type.name in ["SUPERGROUP", "GROUP"]:
-        from ..helper.telegram_helper.ephemeral_utils import send_ephemeral_message
-        res = await send_ephemeral_message(
-            chat_id=message.chat.id,
-            text=msg,
-            buttons=button,
-            receiver_user_id=message.from_user.id,
-        )
-        if res:
-            return
+    from ..helper.telegram_helper.ephemeral_utils import send_rich_message
+    res = await send_rich_message(
+        chat_id=message.chat.id,
+        text=msg,
+        buttons=button,
+        use_inside_buttons=True,
+    )
+    if res:
+        return
     await send_message(message, msg, button)
 
 

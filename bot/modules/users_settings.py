@@ -1074,7 +1074,14 @@ async def get_user_settings(from_user, stype="main"):
 async def update_user_settings(query, stype="main"):
     handler_dict[query.from_user.id] = False
     msg, button = await get_user_settings(query.from_user, stype)
-    await edit_message(query.message, msg, button)
+    from ..helper.telegram_helper.ephemeral_utils import edit_rich_message
+    qmsg = query.message
+    msg_id = getattr(qmsg, "id", None) or getattr(qmsg, "message_id", None)
+    res = None
+    if msg_id and not getattr(qmsg, "media", None):
+        res = await edit_rich_message(qmsg.chat.id, msg_id, msg, button, use_inside_buttons=True)
+    if not res:
+        await edit_message(qmsg, msg, button)
     try:
         await query.answer()
     except Exception:
@@ -1086,16 +1093,15 @@ async def send_user_settings(_, message):
     from_user = message.from_user
     handler_dict[from_user.id] = False
     msg, button = await get_user_settings(from_user)
-    if message.chat.type.name in ["SUPERGROUP", "GROUP"]:
-        from ..helper.telegram_helper.ephemeral_utils import send_ephemeral_message
-        res = await send_ephemeral_message(
-            chat_id=message.chat.id,
-            text=msg,
-            buttons=button,
-            receiver_user_id=from_user.id,
-        )
-        if res:
-            return
+    from ..helper.telegram_helper.ephemeral_utils import send_rich_message
+    res = await send_rich_message(
+        chat_id=message.chat.id,
+        text=msg,
+        buttons=button,
+        use_inside_buttons=True,
+    )
+    if res:
+        return
     await send_message(message, msg, button)
 
 
