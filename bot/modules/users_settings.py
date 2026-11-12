@@ -425,42 +425,31 @@ async def get_user_settings(from_user, stype="main"):
 ┖ <b>YT Cookies Mode</b> → <b>{cookie_mode}</b>
 """
 
-    elif stype == "leech":
+    elif stype in ("leech", "leech2"):
         thumbpath = f"thumbnails/{user_id}.jpg"
-        buttons.data_button("Thumbnail", f"userset {user_id} menu THUMBNAIL")
         thumbmsg = "Exists" if await aiopath.exists(thumbpath) else "Not Exists"
-        buttons.data_button(
-            "Leech Split Size", f"userset {user_id} menu LEECH_SPLIT_SIZE"
-        )
         if user_dict.get("LEECH_SPLIT_SIZE", False):
             split_size = user_dict["LEECH_SPLIT_SIZE"]
         else:
             split_size = Config.LEECH_SPLIT_SIZE
-        buttons.data_button(
-            "Leech Destination", f"userset {user_id} menu LEECH_DUMP_CHAT"
-        )
         if user_dict.get("LEECH_DUMP_CHAT", False):
             leech_dest = user_dict["LEECH_DUMP_CHAT"]
         elif "LEECH_DUMP_CHAT" not in user_dict and Config.LEECH_DUMP_CHAT:
             leech_dest = Config.LEECH_DUMP_CHAT
         else:
             leech_dest = "None"
-        buttons.data_button("Leech Prefix", f"userset {user_id} menu LEECH_PREFIX")
         if user_dict.get("LEECH_PREFIX", False):
             lprefix = user_dict["LEECH_PREFIX"]
         elif "LEECH_PREFIX" not in user_dict and Config.LEECH_PREFIX:
             lprefix = Config.LEECH_PREFIX
         else:
             lprefix = "Not Exists"
-        buttons.data_button("Leech Suffix", f"userset {user_id} menu LEECH_SUFFIX")
         if user_dict.get("LEECH_SUFFIX", False):
             lsuffix = user_dict["LEECH_SUFFIX"]
         elif "LEECH_SUFFIX" not in user_dict and Config.LEECH_SUFFIX:
             lsuffix = Config.LEECH_SUFFIX
         else:
             lsuffix = "Not Exists"
-
-        buttons.data_button("Leech Caption", f"userset {user_id} menu LEECH_CAPTION")
         if user_dict.get("LEECH_CAPTION", False):
             lcap = user_dict["LEECH_CAPTION"]
         elif "LEECH_CAPTION" not in user_dict and Config.LEECH_CAPTION:
@@ -468,49 +457,27 @@ async def get_user_settings(from_user, stype="main"):
         else:
             lcap = "Not Exists"
 
-        if (
+        is_as_doc = (
             user_dict.get("AS_DOCUMENT", False)
             or "AS_DOCUMENT" not in user_dict
             and Config.AS_DOCUMENT
-        ):
-            ltype = "DOCUMENT"
-            buttons.data_button("Send As Media", f"userset {user_id} tog AS_DOCUMENT f")
-        else:
-            ltype = "MEDIA"
-            buttons.data_button(
-                "Send As Document", f"userset {user_id} tog AS_DOCUMENT t"
-            )
-        if (
+        )
+        ltype = "DOCUMENT" if is_as_doc else "MEDIA"
+
+        is_eq_splits = (
             user_dict.get("EQUAL_SPLITS", False)
             or "EQUAL_SPLITS" not in user_dict
             and Config.EQUAL_SPLITS
-        ):
-            buttons.data_button(
-                "Disable Equal Splits", f"userset {user_id} tog EQUAL_SPLITS f"
-            )
-            equal_splits = "Enabled"
-        else:
-            buttons.data_button(
-                "Enable Equal Splits", f"userset {user_id} tog EQUAL_SPLITS t"
-            )
-            equal_splits = "Disabled"
-        if (
+        )
+        equal_splits = "Enabled" if is_eq_splits else "Disabled"
+
+        is_med_grp = (
             user_dict.get("MEDIA_GROUP", False)
             or "MEDIA_GROUP" not in user_dict
             and Config.MEDIA_GROUP
-        ):
-            buttons.data_button(
-                "Disable Media Group", f"userset {user_id} tog MEDIA_GROUP f"
-            )
-            media_group = "Enabled"
-        else:
-            buttons.data_button(
-                "Enable Media Group", f"userset {user_id} tog MEDIA_GROUP t"
-            )
-            media_group = "Disabled"
-        buttons.data_button(
-            "Thumbnail Layout", f"userset {user_id} menu THUMBNAIL_LAYOUT"
         )
+        media_group = "Enabled" if is_med_grp else "Disabled"
+
         if user_dict.get("THUMBNAIL_LAYOUT", False):
             thumb_layout = user_dict["THUMBNAIL_LAYOUT"]
         elif "THUMBNAIL_LAYOUT" not in user_dict and Config.THUMBNAIL_LAYOUT:
@@ -518,13 +485,45 @@ async def get_user_settings(from_user, stype="main"):
         else:
             thumb_layout = "None"
 
+        if stype == "leech":
+            buttons.data_button("Thumbnail", f"userset {user_id} menu THUMBNAIL")
+            buttons.data_button(
+                "Leech Split Size", f"userset {user_id} menu LEECH_SPLIT_SIZE"
+            )
+            buttons.data_button(
+                "Leech Destination", f"userset {user_id} menu LEECH_DUMP_CHAT"
+            )
+            buttons.data_button("Leech Prefix", f"userset {user_id} menu LEECH_PREFIX")
+            buttons.data_button("Leech Suffix", f"userset {user_id} menu LEECH_SUFFIX")
+            buttons.data_button("Next ➡", f"userset {user_id} leech2")
+            page_label = "Page 1/2"
+        else:
+            buttons.data_button("Leech Caption", f"userset {user_id} menu LEECH_CAPTION")
+            buttons.data_button(
+                "Send As Media" if is_as_doc else "Send As Document",
+                f"userset {user_id} tog AS_DOCUMENT {'f' if is_as_doc else 't'}",
+            )
+            buttons.data_button(
+                "Disable Equal Splits" if is_eq_splits else "Enable Equal Splits",
+                f"userset {user_id} tog EQUAL_SPLITS {'f' if is_eq_splits else 't'}",
+            )
+            buttons.data_button(
+                "Disable Media Group" if is_med_grp else "Enable Media Group",
+                f"userset {user_id} tog MEDIA_GROUP {'f' if is_med_grp else 't'}",
+            )
+            buttons.data_button(
+                "Thumbnail Layout", f"userset {user_id} menu THUMBNAIL_LAYOUT"
+            )
+            buttons.data_button("⬅ Prev", f"userset {user_id} leech")
+            page_label = "Page 2/2"
+
         buttons.data_button("Back", f"userset {user_id} back", "footer")
         buttons.data_button(
             "Close", f"userset {user_id} close", "footer", style=ButtonStyle.DANGER
         )
         btns = buttons.build_menu(2)
 
-        text = f"""⌬ <b>Leech Settings :</b>
+        text = f"""⌬ <b>Leech Settings ({page_label}) :</b>
 ┟ <b>Name</b> → {user_name}
 ┃
 ┠ Leech Type → <b>{ltype}</b>
@@ -1099,6 +1098,7 @@ async def send_user_settings(_, message):
         text=msg,
         buttons=button,
         use_inside_buttons=True,
+        reply_to_message_id=message.id,
     )
     if res:
         return
@@ -1478,6 +1478,7 @@ async def edit_user_settings(client, query):
         "general",
         "mirror",
         "leech",
+        "leech2",
         "uphoster",
         "gofile",
         "buzzheavier",
@@ -1564,7 +1565,7 @@ async def edit_user_settings(client, query):
         elif data[3] in ["USER_TOKENS", "USE_DEFAULT_COOKIE"]:
             back_to = "general"
         else:
-            back_to = "leech"
+            back_to = "leech2"
         await update_user_settings(query, stype=back_to)
         await database.update_user_data(user_id)
     elif data[2] == "file":

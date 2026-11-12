@@ -277,6 +277,17 @@ ONOFF_VARS = [
 ]
 
 
+def _add_page_footer(buttons, key, current_start, page_size, total, back_cb="botset back"):
+    if current_start > 0:
+        buttons.data_button("⬅ Prev", f"botset start {key} {max(0, current_start - page_size)}", position="footer")
+    if current_start + page_size < total:
+        buttons.data_button("Next ➡", f"botset start {key} {current_start + page_size}", position="footer")
+    buttons.data_button("Back", back_cb, position="footer")
+    buttons.data_button("Close", "botset close", position="footer", style=ButtonStyle.DANGER)
+    total_pages = max(1, (total + page_size - 1) // page_size)
+    return f"{(current_start // page_size) + 1}/{total_pages}"
+
+
 async def get_buttons(key=None, edit_type=None, edit_mode=False):
     buttons = ButtonMaker()
     if key is None:
@@ -355,26 +366,22 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
             k: v for k, v in Config.get_all().items() if not k.startswith("DISABLE_")
         }
         all_keys = list(conf_dict.keys())
-        for k in all_keys[start : 10 + start]:
+        page_size = 4
+        for k in all_keys[start : start + page_size]:
             buttons.data_button(k, f"botset editvar {k}")
-        buttons.data_button("Back", "botset back")
-        buttons.data_button("Close", "botset close", style=ButtonStyle.DANGER)
-        for x in range(0, len(all_keys), 10):
-            buttons.data_button(
-                f"{int(x / 10) + 1}", f"botset start var {x}", position="footer"
-            )
-        msg = f"⌬ <b><u>Config Variables</u></b> | <b><u>Page: {int(start / 10) + 1}</u></b>"
+        page_str = _add_page_footer(buttons, "var", start, page_size, len(all_keys))
+        msg = f"⌬ <b><u>Config Variables</u></b> | <b><u>Page: {page_str}</u></b>"
     elif key == "setonoff":
-        for k in ONOFF_VARS:
+        page_size = 4
+        for k in ONOFF_VARS[start : start + page_size]:
             val = Config.get(k)
             label = k.removeprefix("DISABLE_")
             if not val:
                 buttons.data_button(f"✓ {label}", f"botset toggleonoff {k} on")
             else:
                 buttons.data_button(label, f"botset toggleonoff {k} off")
-        buttons.data_button("Back", "botset back", position="footer")
-        buttons.data_button("Close", "botset close", position="footer", style=ButtonStyle.DANGER)
-        msg = "⌬ <b><u>Module Settings</u></b>"
+        page_str = _add_page_footer(buttons, "setonoff", start, page_size, len(ONOFF_VARS))
+        msg = f"⌬ <b><u>Module Settings</u></b> | <b><u>Page: {page_str}</u></b>"
     elif key == "private":
         if edit_mode:
             buttons.data_button("Stop Invoke File", "botset private stop", "header")
@@ -412,86 +419,55 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
         if edit_mode:
             msg += "\n\n<i>Send the file name to delete the file, file to save the file & for new file create, follow below format.</i> \n\n<b>Format:</b> \n<code>file_name\n\ncontents of file</code>\n┖ <b>Time Left :</b> <code>60 sec</code>"
     elif key == "aria":
-        for k in list(aria2_options.keys())[start : 10 + start]:
-            if k not in ["checksum", "index-out", "out", "pause", "select-file"]:
-                buttons.data_button(k, f"botset ariavar {k}")
-        if state == "view":
-            buttons.data_button("Edit", "botset edit aria")
-        else:
-            buttons.data_button("View", "botset view aria")
+        aria_keys = [k for k in aria2_options.keys() if k not in ["checksum", "index-out", "out", "pause", "select-file"]]
+        page_size = 2
+        for k in aria_keys[start : start + page_size]:
+            buttons.data_button(k, f"botset ariavar {k}")
+        buttons.data_button("Edit" if state == "view" else "View", f"botset {'edit' if state == 'view' else 'view'} aria")
         buttons.data_button("Add new key", "botset ariavar newkey")
-        buttons.data_button("Back", "botset back")
-        buttons.data_button("Close", "botset close", style=ButtonStyle.DANGER)
-        for x in range(0, len(aria2_options), 10):
-            buttons.data_button(
-                f"{int(x / 10)}", f"botset start aria {x}", position="footer"
-            )
-        msg = f"Aria2c Options | Page: {int(start / 10)} | State: {state}"
+        page_str = _add_page_footer(buttons, "aria", start, page_size, len(aria_keys))
+        msg = f"Aria2c Options | Page: {page_str} | State: {state}"
     elif key == "qbit":
-        for k in list(qbit_options.keys())[start : 10 + start]:
+        qbit_keys = list(qbit_options.keys())
+        page_size = 2
+        for k in qbit_keys[start : start + page_size]:
             buttons.data_button(k, f"botset qbitvar {k}")
-        if state == "view":
-            buttons.data_button("Edit", "botset edit qbit")
-        else:
-            buttons.data_button("View", "botset view qbit")
+        buttons.data_button("Edit" if state == "view" else "View", f"botset {'edit' if state == 'view' else 'view'} qbit")
         buttons.data_button("Sync Qbittorrent", "botset syncqbit")
-        buttons.data_button("Back", "botset back")
-        buttons.data_button("Close", "botset close", style=ButtonStyle.DANGER)
-        for x in range(0, len(qbit_options), 10):
-            buttons.data_button(
-                f"{int(x / 10)}", f"botset start qbit {x}", position="footer"
-            )
-        msg = f"Qbittorrent Options | Page: {int(start / 10)} | State: {state}"
+        page_str = _add_page_footer(buttons, "qbit", start, page_size, len(qbit_keys))
+        msg = f"Qbittorrent Options | Page: {page_str} | State: {state}"
     elif key == "nzb":
-        for k in list(nzb_options.keys())[start : 10 + start]:
+        nzb_keys = list(nzb_options.keys())
+        page_size = 1
+        for k in nzb_keys[start : start + page_size]:
             buttons.data_button(k, f"botset nzbvar {k}")
-        if state == "view":
-            buttons.data_button("Edit", "botset edit nzb")
-        else:
-            buttons.data_button("View", "botset view nzb")
+        buttons.data_button("Edit" if state == "view" else "View", f"botset {'edit' if state == 'view' else 'view'} nzb")
         buttons.data_button("Servers", "botset nzbserver")
         buttons.data_button("Sync Sabnzbd", "botset syncnzb")
-        buttons.data_button("Back", "botset back")
-        buttons.data_button("Close", "botset close", style=ButtonStyle.DANGER)
-        for x in range(0, len(nzb_options), 10):
-            buttons.data_button(
-                f"{int(x / 10)}", f"botset start nzb {x}", position="footer"
-            )
-        msg = f"Sabnzbd Options | Page: {int(start / 10)} | State: {state}"
+        page_str = _add_page_footer(buttons, "nzb", start, page_size, len(nzb_keys))
+        msg = f"Sabnzbd Options | Page: {page_str} | State: {state}"
     elif key == "nzbserver":
         servers = Config.USENET_SERVERS if isinstance(Config.USENET_SERVERS, list) else []
+        page_size = 3
         if len(servers) > 0:
-            for index, k in enumerate(servers[start : 10 + start]):
+            for index, k in enumerate(servers[start : start + page_size], start=start):
                 buttons.data_button(k["name"], f"botset nzbser{index}")
         buttons.data_button("Add New", "botset nzbsevar newser")
-        buttons.data_button("Back", "botset nzb")
-        buttons.data_button("Close", "botset close", style=ButtonStyle.DANGER)
-        if len(servers) > 10:
-            for x in range(0, len(servers), 10):
-                buttons.data_button(
-                    f"{int(x / 10)}", f"botset start nzbser {x}", position="footer"
-                )
-        msg = f"Usenet Servers | Page: {int(start / 10)} | State: {state}"
+        page_str = _add_page_footer(buttons, "nzbserver", start, page_size, len(servers), back_cb="botset nzb")
+        msg = f"Usenet Servers | Page: {page_str} | State: {state}"
     elif key.startswith("nzbser"):
         servers = Config.USENET_SERVERS if isinstance(Config.USENET_SERVERS, list) else []
         index = int(key.replace("nzbser", ""))
         if not servers or index >= len(servers):
             return await get_buttons("nzbserver")
-        for k in list(servers[index].keys())[start : 10 + start]:
+        ser_keys = list(servers[index].keys())
+        page_size = 2
+        for k in ser_keys[start : start + page_size]:
             buttons.data_button(k, f"botset nzbsevar{index} {k}")
-        if state == "view":
-            buttons.data_button("Edit", f"botset edit {key}")
-        else:
-            buttons.data_button("View", f"botset view {key}")
+        buttons.data_button("Edit" if state == "view" else "View", f"botset {'edit' if state == 'view' else 'view'} {key}")
         buttons.data_button("Remove Server", f"botset remser {index}")
-        buttons.data_button("Back", "botset nzbserver")
-        buttons.data_button("Close", "botset close", style=ButtonStyle.DANGER)
-        if len(servers[index].keys()) > 10:
-            for x in range(0, len(servers[index]), 10):
-                buttons.data_button(
-                    f"{int(x / 10)}", f"botset start {key} {x}", position="footer"
-                )
-        msg = f"Server Keys | Page: {int(start / 10)} | State: {state}"
+        page_str = _add_page_footer(buttons, key, start, page_size, len(ser_keys), back_cb="botset nzbserver")
+        msg = f"Server Keys | Page: {page_str} | State: {state}"
     else:
         msg = "Unknown option"
 
@@ -1071,8 +1047,7 @@ async def edit_bot_settings(client, query):
     elif data[1] in ["var", "aria", "qbit", "nzb", "nzbserver", "setonoff"] or data[1].startswith(
         "nzbser"
     ):
-        if data[1] == "nzbserver":
-            globals()["start"] = 0
+        globals()["start"] = 0
         await query.answer()
         await update_buttons(message, data[1])
     elif data[1] == "resetvar":
@@ -1358,6 +1333,7 @@ async def send_bot_settings(_, message):
         text=msg,
         buttons=button,
         use_inside_buttons=True,
+        reply_to_message_id=message.id,
     )
     if res:
         return
