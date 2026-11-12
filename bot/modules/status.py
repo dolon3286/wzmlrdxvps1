@@ -156,7 +156,7 @@ async def status_pages(_, query):
             text=prompt_text,
         )
         if conf_msg:
-            await auto_delete_message(conf_msg, time=30)
+            await auto_delete_message(conf_msg, stime=30)
         return
     elif data[2] == "canno":
         from ..helper.telegram_helper.message_utils import delete_message

@@ -1412,7 +1412,7 @@ async def get_menu(option, message, user_id):
 ┠ <b>Default Input Type</b> → {user_settings_text[option][0]}
 ┖ <b>Description</b> → {user_settings_text[option][1]}
 """
-    await edit_message(message, text, buttons.build_menu(2))
+    await edit_message(message, text, buttons.build_menu(2), use_inside_buttons=True)
 
 
 async def event_handler(client, query, pfunc, rfunc, photo=False, document=False):
@@ -1443,12 +1443,15 @@ async def event_handler(client, query, pfunc, rfunc, photo=False, document=False
             await rfunc()
         elif time() - update_time > 8 and handler_dict[user_id]:
             update_time = time()
+            time_line = f"┖ <b>Time Left :</b> <code>{round(60 - (time() - start_time), 2)} sec</code>"
+            from ..helper.telegram_helper.ephemeral_utils import update_cached_rich_countdown
+            if await update_cached_rich_countdown(query.message.chat.id, query.message.id, time_line):
+                continue
             msg = await client.get_messages(query.message.chat.id, query.message.id)
-            text = msg.text.split("\n")
-            text[-1] = (
-                f"┖ <b>Time Left :</b> <code>{round(60 - (time() - start_time), 2)} sec</code>"
-            )
-            await edit_message(msg, "\n".join(text), msg.reply_markup)
+            if msg and msg.text and msg.reply_markup:
+                text = msg.text.split("\n")
+                text[-1] = time_line
+                await edit_message(msg, "\n".join(text), msg.reply_markup)
     client.remove_handler(*handler)
 
 
@@ -1491,13 +1494,13 @@ async def edit_user_settings(client, query):
     elif data[2] == "mega":
         await query.answer()
         msg, button = await get_user_settings(query.from_user, "mega")
-        await edit_message(message, msg, button)
+        await edit_message(message, msg, button, use_inside_buttons=True)
         mega_email = user_dict.get("MEGA_EMAIL", "")
         mega_password = user_dict.get("MEGA_PASSWORD", "")
         if mega_email and mega_password:
             info_text = await get_mega_account_info(mega_email, mega_password)
             msg += f"\n\n{info_text}"
-            await edit_message(message, msg, button)
+            await edit_message(message, msg, button, use_inside_buttons=True)
     elif data[2] == "yttools":
         await query.answer()
         await update_user_settings(query, data[2])
@@ -1547,7 +1550,7 @@ async def edit_user_settings(client, query):
         )
 
         text = """⌬ <b>Select Uphoster Destinations :</b>"""
-        await edit_message(message, text, buttons.build_menu(2))
+        await edit_message(message, text, buttons.build_menu(2), use_inside_buttons=True)
     elif data[2] == "menu":
         await query.answer()
         await get_menu(data[3], message, user_id)
@@ -1575,7 +1578,7 @@ async def edit_user_settings(client, query):
         )
         prompt_title = data[3].replace("_", " ").title()
         new_message_text = f"⌬ <b>Set {prompt_title}</b>\n\n{text}"
-        await edit_message(message, new_message_text, buttons.build_menu(1))
+        await edit_message(message, new_message_text, buttons.build_menu(1), use_inside_buttons=True)
         rfunc = partial(get_menu, data[3], message, user_id)
         pfunc = partial(add_file, ftype=data[3], rfunc=rfunc)
         await event_handler(
@@ -1603,8 +1606,11 @@ async def edit_user_settings(client, query):
         buttons.data_button(
             "Close", f"userset {user_id} close", "footer", style=ButtonStyle.DANGER
         )
+        from ..helper.telegram_helper.ephemeral_utils import get_cached_rich_html, strip_inside_button_blocks
+        cached_html = get_cached_rich_html(message.chat.id, message.id)
+        base_html = strip_inside_button_blocks(cached_html) if cached_html else message.text.html
         await edit_message(
-            message, message.text.html + "\n\n" + text, buttons.build_menu(1)
+            message, base_html + "\n\n" + text, buttons.build_menu(1), use_inside_buttons=True
         )
         rfunc = partial(get_menu, data[3], message, user_id)
         pfunc = partial(func, option=data[3], rfunc=rfunc)
@@ -1649,7 +1655,7 @@ async def edit_user_settings(client, query):
             "Close", f"userset {user_id} close", "footer", style=ButtonStyle.DANGER
         )
         text = "<i>Are you sure you want to reset all your user settings?</i>"
-        await edit_message(query.message, text, buttons.build_menu(2))
+        await edit_message(query.message, text, buttons.build_menu(2), use_inside_buttons=True)
     elif data[2] == "do_reset_all":
         if data[3] == "yes":
             await query.answer("Reset Done!", show_alert=True)

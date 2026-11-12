@@ -363,7 +363,7 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
             buttons.data_button(
                 f"{int(x / 10) + 1}", f"botset start var {x}", position="footer"
             )
-        msg = f"⌬ <b><u>Config Variables</u></b> | <b><u>Page: {int(start / 10) + 1}</b></u>"
+        msg = f"⌬ <b><u>Config Variables</u></b> | <b><u>Page: {int(start / 10) + 1}</u></b>"
     elif key == "setonoff":
         for k in ONOFF_VARS:
             val = Config.get(k)
@@ -410,7 +410,7 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
 ┃
 ┖ <b>Note:</b> Changing .netrc will not take effect for aria2c until restart."""
         if edit_mode:
-            msg += "\n\n<i>Send the file name to delete the file, file to save the file & for new file create, follow below format.</i> \n\n<b>Format:</b> \n<code>file_name\n\ncontents of file</code></i>\n┖ <b>Time Left :</b> <code>60 sec</code>"
+            msg += "\n\n<i>Send the file name to delete the file, file to save the file & for new file create, follow below format.</i> \n\n<b>Format:</b> \n<code>file_name\n\ncontents of file</code>\n┖ <b>Time Left :</b> <code>60 sec</code>"
     elif key == "aria":
         for k in list(aria2_options.keys())[start : 10 + start]:
             if k not in ["checksum", "index-out", "out", "pause", "select-file"]:
@@ -1029,12 +1029,15 @@ async def event_handler(client, query, pfunc, rfunc, document=False):
             await rfunc()
         elif time() - update_time > 8 and handler_dict[chat_id]:
             update_time = time()
+            time_line = f"┖ <b>Time Left :</b> <code>{round(60 - (time() - start_time), 2)} sec</code>"
+            from ..helper.telegram_helper.ephemeral_utils import update_cached_rich_countdown
+            if await update_cached_rich_countdown(chat_id, query.message.id, time_line):
+                continue
             msg = await client.get_messages(chat_id, query.message.id)
-            text = msg.text.split("\n")
-            text[-1] = (
-                f"┖ <b>Time Left :</b> <code>{round(60 - (time() - start_time), 2)} sec</code>"
-            )
-            await edit_message(msg, "\n".join(text), msg.reply_markup)
+            if msg and msg.text and msg.reply_markup:
+                text = msg.text.split("\n")
+                text[-1] = time_line
+                await edit_message(msg, "\n".join(text), msg.reply_markup)
     client.remove_handler(*handler)
 
 
