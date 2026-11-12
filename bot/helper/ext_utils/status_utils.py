@@ -196,22 +196,18 @@ def speed_string_to_bytes(size_text: str):
 
 
 def get_progress_bar_string(pct):
-    pct = float(str(pct).strip("%"))
-    p = min(max(pct, 0), 100)
-    cFull = int(p // 8)
-    # Replace these IDs with your custom emoji IDs for the progress bar
-    PRG_FULL = '<tg-emoji emoji-id="5321086282103792429">🌷</tg-emoji>'
-    PRG_EMPTY = '<tg-emoji emoji-id="5971816626796892111">🔹</tg-emoji>'
-    
-    p_str = PRG_FULL * cFull
-    p_str += PRG_EMPTY * (12 - cFull)
-    return f"[{p_str}]"
+    try:
+        pct_float = float(str(pct).strip("%"))
+    except Exception:
+        pct_float = 0
+    p = min(max(pct_float, 0), 100)
+    cFull = int(p / 100 * 30)
+    cEmpty = 30 - cFull
+    return f"[{'▪' * cFull}{'▫' * cEmpty}]"
 
 
 async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=1):
     msg = ""
-    button = None
-
     tasks = await get_specific_tasks(status, sid if is_user else None)
 
     STATUS_LIMIT = Config.STATUS_LIMIT
@@ -225,128 +221,123 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         status_dict[sid]["page_no"] = page_no
     start_position = (page_no - 1) * STATUS_LIMIT
 
-    # --- REPLACE THESE IDs WITH REAL ONES ---
-    EM_1 = '<tg-emoji emoji-id="5877219383691972108">➕</tg-emoji>'
-    EM_2 = '<tg-emoji emoji-id="5195111279244619776">🍀</tg-emoji>'
-    EM_3 = '<tg-emoji emoji-id="5287533898803211359">📫</tg-emoji>'
-    EM_4 = '<tg-emoji emoji-id="5411590687663608498">⚡</tg-emoji>'
-    EM_5 = '<tg-emoji emoji-id="5422407403884798028">🍀</tg-emoji>'
-    EM_6 = '<tg-emoji emoji-id="5424867354993513047">🌷</tg-emoji>'
-    EM_7 = '<tg-emoji emoji-id="5443127283898405358">⬇️</tg-emoji>'
-    EM_8 = '<tg-emoji emoji-id="5445355530111437729">⬆️</tg-emoji>'
-    EM_9 = '<tg-emoji emoji-id="5765005318610228026">❌</tg-emoji>'
-    EM_10 = '<tg-emoji emoji-id="5285439518130857782">❤️</tg-emoji>'
-    EM_11 = '<tg-emoji emoji-id="5190642636356072894">☔️</tg-emoji>'
-    EM_12 = '<tg-emoji emoji-id="5256218768262056531">🟪</tg-emoji>'
-    EM_13 = '<tg-emoji emoji-id="5285535716808342592">☠️</tg-emoji>'
-    # ----------------------------------------
+    from ..telegram_helper.bot_commands import BotCommands
 
     for index, task in enumerate(
         tasks[start_position : STATUS_LIMIT + start_position], start=1
     ):
+        idx = index + start_position
         if status != "All":
             tstatus = status
         elif iscoroutinefunction(task.status):
             tstatus = await task.status()
         else:
             tstatus = task.status()
-        msg += f"<b>{index + start_position}.</b> "
-        msg += f"<b><i>{escape(f'{task.name()}')}</i></b>"
+
+        # Task header line 1: index and title
+        msg += f"<b>{idx}. {escape(task.name())}</b>\n"
         if task.listener.subname:
-            msg += f"\n┖ <b>Sub Name</b> → <i>{task.listener.subname}</i>"
+            msg += f"┖ <b>Sub Name</b> → <i>{task.listener.subname}</i>\n"
+
         elapsed = time() - task.listener.message.date.timestamp()
-
         link_str = f" <i>[<a href='{task.listener.message.link}'>Link</a>]</i>" if task.listener.is_super_chat else ""
-        msg += f"\n<blockquote expandable>"
-        msg += f"<b>Task By <code>{task.listener.message.from_user.mention(style='html')}</code> </b> ( #ID{task.listener.message.from_user.id} ){link_str}"
 
-        if (
+        # Task header line 2: Task By
+        user_mention = task.listener.message.from_user.mention(style="html")
+        user_id = task.listener.message.from_user.id
+        msg += f"⚡ <b>Task By</b> {user_mention} ( #ID{user_id} ){link_str}\n"
+
+        # Task header line 3: Progress bar
+        has_prog = (
             tstatus not in [MirrorStatus.STATUS_SEED, MirrorStatus.STATUS_QUEUEUP]
             and task.listener.progress
-        ):
+        )
+        if has_prog:
             progress = task.progress()
-            msg += f"\n: {EM_1} {get_progress_bar_string(progress)} <i>{progress}</i>"
+            msg += f"{get_progress_bar_string(progress)} {progress}\n\n"
+        else:
+            msg += "\n"
+
+        gid_short = task.gid()[:8]
+        is_torrent = getattr(task.listener, "is_torrent", False) or getattr(task.listener, "is_qbit", False)
+
+        # Native Rich Table for Task
+        msg += '<table border="1">\n'
+        if has_prog:
             if task.listener.subname:
                 subsize = f" / {get_readable_file_size(task.listener.subsize)}"
                 ac = len(task.listener.files_to_proceed)
-                count = f"( {task.listener.proceed_count} / {ac or '?'} )"
+                count = f" ( {task.listener.proceed_count} / {ac or '?'} )"
             else:
                 subsize = ""
                 count = ""
-            msg += f"\n{EM_2} <b>Processed</b> → <i>{task.processed_bytes()}{subsize} of {task.size()}</i>"
-            if count:
-                msg += f"\n{EM_4} <b>Count:</b> → <b>{count}</b>"
-            msg += f"\n{EM_3} <b>Status</b> → <b>{tstatus}</b>"
-            msg += f"\n{EM_4} <b>Speed</b> → <i>{task.speed()}</i>"
-            msg += f"\n{EM_5} <b>Time</b> → <i>{task.eta()} of {get_readable_time(elapsed + get_raw_time(task.eta()))} ( {get_readable_time(elapsed)} )</i>"
-            if tstatus == MirrorStatus.STATUS_DOWNLOAD and (
-                task.listener.is_torrent or task.listener.is_qbit
-            ):
+            msg += f"<tr><td>☘️ Processed</td><td>{task.processed_bytes()}{subsize} of {task.size()}{count}</td></tr>\n"
+            msg += f"<tr><td>💸 Status</td><td>{tstatus}</td></tr>\n"
+            msg += f"<tr><td>⚡ Speed</td><td>{task.speed()}</td></tr>\n"
+            msg += f"<tr><td>🍀 Time</td><td>{task.eta()} of {get_readable_time(elapsed + get_raw_time(task.eta()))} ( {get_readable_time(elapsed)} )</td></tr>\n"
+            if tstatus == MirrorStatus.STATUS_DOWNLOAD and is_torrent:
                 try:
-                    msg += f"\n{EM_2} <b>Seeders</b> → {task.seeders_num()} | <b>Leechers</b> → {task.leechers_num()}"
+                    s_num = task.seeders_num()
+                    l_num = task.leechers_num()
+                    if s_num is not None or l_num is not None:
+                        msg += f"<tr><td>🌱 Seeders / Leechers</td><td>{s_num or 0} / {l_num or 0}</td></tr>\n"
                 except Exception:
                     pass
         elif tstatus == MirrorStatus.STATUS_SEED:
-            msg += f"\n{EM_6} <b>Size</b> → <i>{task.size()}</i> | <b>Uploaded</b>  → <i>{task.uploaded_bytes()}</i>"
-            msg += f"\n{EM_3} <b>Status</b> → <b>{tstatus}</b>"
-            msg += f"\n{EM_4} <b>Speed</b> → <i>{task.seed_speed()}</i>"
-            msg += f"\n{EM_1} <b>Ratio</b> → <i>{task.ratio()}</i>"
-            msg += f"\n{EM_5} <b>Time</b> → <i>{task.seeding_time()}</i> | <b>Elapsed</b> → <i>{get_readable_time(elapsed)}</i>"
+            msg += f"<tr><td>🌷 Size</td><td>{task.size()} | Uploaded: {task.uploaded_bytes()}</td></tr>\n"
+            msg += f"<tr><td>💸 Status</td><td>{tstatus}</td></tr>\n"
+            msg += f"<tr><td>⚡ Speed</td><td>{task.seed_speed()}</td></tr>\n"
+            msg += f"<tr><td>➕ Ratio</td><td>{task.ratio()}</td></tr>\n"
+            msg += f"<tr><td>🍀 Time</td><td>{task.seeding_time()} ( {get_readable_time(elapsed)} )</td></tr>\n"
         else:
-            msg += f"\n{EM_6} <b>Size</b> → <i>{task.size()}</i>"
-        msg += f"\n{EM_13} <b>Engine</b> → <i>{task.engine}</i>"
-        msg += f"\n{EM_7} <b>In Mode</b> → <i>{task.listener.mode[0]}</i>"
-        msg += f"\n{EM_8} <b>Out Mode</b> → <i>{task.listener.mode[1]}</i>"
-        from ..telegram_helper.bot_commands import BotCommands
-        gid_short = task.gid()[:8]
-        is_torrent = getattr(task.listener, "is_torrent", False) or getattr(task.listener, "is_qbit", False)
-        if (
+            msg += f"<tr><td>🌷 Size</td><td>{task.size()}</td></tr>\n"
+            msg += f"<tr><td>💸 Status</td><td>{tstatus}</td></tr>\n"
+
+        msg += f"<tr><td>💀 Engine</td><td>{task.engine}</td></tr>\n"
+        msg += f"<tr><td>⬇️ In Mode</td><td>#{task.listener.mode[0]}</td></tr>\n"
+        msg += f"<tr><td>⬆️ Out Mode</td><td>#{task.listener.mode[1]}</td></tr>\n"
+        msg += f"<tr><td>🛑 Stop</td><td>/{BotCommands.CancelTaskCommand[1]}_{gid_short}</td></tr>\n"
+        msg += "</table>\n"
+
+        # Buttons Inside Message right under task table
+        can_select = (
             tstatus in [
                 MirrorStatus.STATUS_DOWNLOAD,
                 MirrorStatus.STATUS_PAUSED,
                 MirrorStatus.STATUS_QUEUEDL,
             ]
             and is_torrent
-        ):
-            msg += f"\n{EM_2} <b>Select</b> → /{BotCommands.SelectCommand[1]}_{gid_short}"
+        )
+        msg += '<tg-button-row align="center">'
+        if can_select:
+            msg += f'<tg-button type="callback_data" data="status {sid} sel {gid_short}" style="primary">📂 Select #{idx}</tg-button>'
+        msg += f'<tg-button type="callback_data" data="status {sid} can {gid_short}" style="danger">❌ Cancel #{idx}</tg-button>'
+        msg += '</tg-button-row>\n\n'
 
-        msg += f"\n{EM_9} <b>Stop</b> → <i>/{BotCommands.CancelTaskCommand[1]}_{gid_short}</i>"
-        msg += "</blockquote>\n\n"
-
-    if len(msg) == 0:
+    if len(tasks) == 0:
         if status == "All":
             return None, None
         else:
-            msg = f"No Active {status} Tasks!\n\n"
+            msg = f"<b>No Active {status} Tasks!</b>\n\n"
 
-    msg += f"\n{EM_12} <b><u>Bot Stats</u></b>"
+    # Native Rich Table for Bot Stats
+    msg += "✨ <b><u>Bot Stats</u></b>\n"
     if len(tasks) > STATUS_LIMIT:
-        msg += f" <b>Page:</b> {page_no}/{pages} | <b>Tasks:</b> {tasks_no} | <b>Step:</b> {page_step}\n"
-    msg += f"<blockquote>"
-    msg += f"{EM_10} <b>CPU</b> → {cpu_percent()}% | <b>F</b> → {get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)} [{round(100 - disk_usage(DOWNLOAD_DIR).percent, 1)}%]"
-    msg += f"\n{EM_11} <b>RAM</b> → {virtual_memory().percent}% | <b>UP</b> → {get_readable_time(time() - bot_start_time)}"
-    msg += "</blockquote>"
+        msg += f"<b>Page:</b> {page_no}/{pages} | <b>Tasks:</b> {tasks_no} | <b>Step:</b> {page_step}\n"
 
-    buttons = ButtonMaker()
+    msg += '<table border="1">\n'
+    msg += '<tr><th>🍧 CPU</th><th>☕ Free</th><th>🪁 RAM</th><th>⚡ UP</th></tr>\n'
+    msg += f'<tr><td>{cpu_percent()}%</td><td>{get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)} [{round(100 - disk_usage(DOWNLOAD_DIR).percent, 1)}%]</td><td>{virtual_memory().percent}%</td><td>{get_readable_time(time() - bot_start_time)}</td></tr>\n'
+    msg += '</table>\n'
+
+    # Bottom Inside Buttons
+    msg += '<tg-button-row align="center">'
+    if len(tasks) > STATUS_LIMIT:
+        msg += f'<tg-button type="callback_data" data="status {sid} pre">&lt;&lt;</tg-button>'
+        msg += f'<tg-button type="callback_data" data="status {sid} nex">&gt;&gt;</tg-button>'
     if not is_user:
-        buttons.data_button(
-            "📜 TStats",
-            f"status {sid} ov",
-            position="header",
-            style=ButtonStyle.PRIMARY,
-        )
-    if len(tasks) > STATUS_LIMIT:
-        buttons.data_button("<<", f"status {sid} pre", position="header")
-        buttons.data_button(">>", f"status {sid} nex", position="header")
-        if tasks_no > 30:
-            for i in [1, 2, 4, 6, 8, 10, 15]:
-                buttons.data_button(i, f"status {sid} ps {i}", position="footer")
-    if status != "All" or tasks_no > 20:
-        for label, status_value in list(STATUSES.items()):
-            if status_value != status:
-                buttons.data_button(label, f"status {sid} st {status_value}")
-    buttons.data_button(
-        "♻️ Refresh", f"status {sid} ref", position="header", style=ButtonStyle.PRIMARY
-    )
-    button = buttons.build_menu(8)
-    return msg, button
+        msg += f'<tg-button type="callback_data" data="status {sid} ov" style="primary">📜 TStats</tg-button>'
+    msg += f'<tg-button type="callback_data" data="status {sid} ref" style="primary">♻️ Refresh</tg-button>'
+    msg += '</tg-button-row>'
+
+    return msg, None
