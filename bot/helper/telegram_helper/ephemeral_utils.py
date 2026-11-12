@@ -146,10 +146,12 @@ def clean_rich_to_html(text):
     # Convert 4-column table headers and rows (e.g. Bot Stats)
     s = re.sub(r'<tr>\s*<th>(.*?)</th>\s*<th>(.*?)</th>\s*<th>(.*?)</th>\s*<th>(.*?)</th>\s*</tr>', r'<b>\1</b> | <b>\2</b> | <b>\3</b> | <b>\4</b>\n', s, flags=re.IGNORECASE)
     s = re.sub(r'<tr>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*</tr>', r'\1 | \2 | \3 | \4\n', s, flags=re.IGNORECASE)
-    # Convert 2-column table rows
+    # Convert <caption> and 2-column table rows (both <th> and <td>)
+    s = re.sub(r'<caption(?:\s+[^>]*)?>(.*?)</caption>', r'<b>\1</b>\n', s, flags=re.DOTALL | re.IGNORECASE)
+    s = re.sub(r'<tr>\s*<th>(.*?)</th>\s*<th>(.*?)</th>\s*</tr>', r'<b>\1:</b> \2\n', s, flags=re.IGNORECASE)
     s = re.sub(r'<tr>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*</tr>', r'<b>\1:</b> \2\n', s, flags=re.IGNORECASE)
     # Strip remaining table tags
-    s = re.sub(r'</?(table|tbody|tr|th|td)(\s+[^>]*)?>', '', s, flags=re.IGNORECASE)
+    s = re.sub(r'</?(table|caption|thead|tbody|tfoot|tr|th|td)(\s+[^>]*)?>', '', s, flags=re.IGNORECASE)
     # Strip button rows entirely so button label doesn't leak into body text
     s = re.sub(r'<tg-button-row(?:\s+[^>]*)?>.*?</tg-button-row>', '', s, flags=re.DOTALL | re.IGNORECASE)
     s = re.sub(r'<tg-button(?:\s+[^>]*)?>.*?</tg-button>', '', s, flags=re.DOTALL | re.IGNORECASE)
