@@ -136,17 +136,27 @@ async def status_pages(_, query):
         ):
             await query.answer("This task is not for you!", show_alert=True)
             return
+        actor_name = escape(query.from_user.first_name or f"User {user_id}")
+        actor_mention = f'<a href="tg://user?id={user_id}">{actor_name}</a>'
+        owner_user = getattr(task.listener.message, "from_user", None)
+        owner_id = getattr(task.listener, "user_id", 0)
+        owner_row = ""
+        if owner_id and owner_id != user_id:
+            owner_name = escape((owner_user.first_name if owner_user else None) or f"User {owner_id}")
+            owner_row = f'<tr><td><b>Task Owner</b></td><td><a href="tg://user?id={owner_id}">{owner_name}</a></td></tr>\n'
         prompt_text = (
-            f"<b>Cancel Task Confirmation</b>\n\n"
-            f"<table border=\"1\">\n"
-            f"<tr><td><b>Task</b></td><td>{escape(task.name())}</td></tr>\n"
-            f"<tr><td><b>GID</b></td><td><code>{gid}</code></td></tr>\n"
-            f"</table>\n\n"
-            f"<i>Are you sure you want to cancel this task?</i>\n\n"
-            f"<tg-button-row align=\"center\">"
-            f"<tg-button type=\"callback_data\" data=\"status {key} canconf {gid}\" style=\"danger\">Yes, Cancel</tg-button>"
-            f"<tg-button type=\"callback_data\" data=\"status {key} canno\" style=\"primary\">No, Back</tg-button>"
-            f"</tg-button-row>"
+            '<table border="1">\n'
+            '<caption>⚠️ Cancel Task Confirmation</caption>\n'
+            f'<tr><th>Task</th><th>{escape(task.name())}</th></tr>\n'
+            f'<tr><td><b>GID</b></td><td><code>{gid}</code></td></tr>\n'
+            f'<tr><td><b>Requested By</b></td><td>{actor_mention} (<code>#ID{user_id}</code>)</td></tr>\n'
+            f'{owner_row}'
+            '</table><br>\n\n'
+            f'{actor_mention}, <i>Are you sure you want to cancel this task?</i>\n\n'
+            '<tg-button-row align="center">'
+            f'<tg-button type="callback_data" data="status {key} canconf {gid}" style="danger">Yes, Cancel</tg-button>'
+            f'<tg-button type="callback_data" data="status {key} canno" style="primary">No, Back</tg-button>'
+            '</tg-button-row>'
         )
         from ..helper.telegram_helper.ephemeral_utils import send_rich_message
         from ..helper.telegram_helper.message_utils import auto_delete_message
