@@ -259,11 +259,13 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             msg += f"┖ <b>Sub Name</b> → <i>{task.listener.subname}</i><br>\n"
 
         elapsed = time() - task.listener.message.date.timestamp()
-        link_str = f" <i>[<a href='{task.listener.message.link}'>Link</a>]</i>" if task.listener.is_super_chat else ""
+        link_str = f' <i>[<a href="{task.listener.message.link}">Link</a>]</i>' if task.listener.is_super_chat else ""
 
         # Task header line 2: Task By
-        user_mention = task.listener.message.from_user.mention(style="html")
-        user_id = task.listener.message.from_user.id
+        from_user = task.listener.message.from_user
+        user_id = from_user.id if from_user else getattr(task.listener, "user_id", 0)
+        user_name = escape((from_user.first_name if from_user else None) or "User")
+        user_mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
         msg += f"{EM_4} <b>Task By</b> {user_mention} ( #ID{user_id} ){link_str}<br>\n"
 
         # Task header line 3: Progress bar
