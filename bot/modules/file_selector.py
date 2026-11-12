@@ -21,7 +21,6 @@ from ..helper.telegram_helper.message_utils import (
     send_status_message,
     delete_message,
 )
-from ..helper.telegram_helper.ephemeral_utils import send_ephemeral_message
 
 
 @new_task
@@ -108,19 +107,10 @@ async def select(_, message):
     SBUTTONS = bt_selection_buttons(id_)
     msg = (
         "<b>Download Paused!</b>\n\n"
+        "<blockquote expandable>"
         "<i>Select your files &amp; press <b>Done Selecting</b> to start.</i>"
+        "</blockquote>"
     )
-    if message.chat.type.name != "PRIVATE":
-        res = await send_ephemeral_message(
-            chat_id=message.chat.id,
-            text=msg,
-            buttons=SBUTTONS,
-            receiver_user_id=user_id,
-            use_inside_buttons=True,
-        )
-        if res:
-            await delete_message(message)
-            return
     await send_message(message, msg, SBUTTONS)
 
 

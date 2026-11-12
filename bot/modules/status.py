@@ -38,7 +38,6 @@ from ..helper.telegram_helper.message_utils import (
     edit_message,
 )
 from ..helper.telegram_helper.button_build import ButtonMaker
-from ..helper.telegram_helper.ephemeral_utils import answer_callback_ephemeral, send_ephemeral_message
 
 
 @new_task
@@ -122,73 +121,65 @@ async def status_pages(_, query):
         gid = data[3]
         task = await get_task_by_gid(gid)
         if task is None:
-            await answer_callback_ephemeral(query, f"Task with GID <code>{gid}</code> not found or already finished!", replace=True)
+            await query.answer(f"Task with GID {gid} not found or already finished!", show_alert=True)
             return
         if (
             Config.OWNER_ID != user_id
             and task.listener.user_id != user_id
             and (user_id not in user_data or not user_data[user_id].get("SUDO"))
         ):
-            await answer_callback_ephemeral(query, "This task is not for you!", replace=False)
+            await query.answer("This task is not for you!", show_alert=True)
             return
         btn = ButtonMaker()
         btn.data_button("Yes, Cancel", f"status {key} canconf {gid}", style=ButtonStyle.DANGER)
         btn.data_button("No, Back", f"status {key} ref", style=ButtonStyle.SUCCESS)
         prompt_text = (
             f"<b>Cancel Task Confirmation</b>\n\n"
-            f"<b>Name:</b> <code>{task.name()}</code>\n"
+            f"<blockquote>"
+            f"<b>Name:</b> <code>{escape(task.name())}</code>\n"
             f"<b>GID:</b> <code>{gid}</code>\n\n"
-            f"<i>Are you sure you want to cancel this task?</i>\n"
-            f'<tg-button-row align="center">'
-            f'<tg-button type="callback_data" data="status {key} canconf {gid}" style="danger">Yes, Cancel</tg-button>'
-            f'<tg-button type="callback_data" data="status {key} ref" style="success">No, Back</tg-button>'
-            f'</tg-button-row>'
+            f"<i>Are you sure you want to cancel this task?</i>"
+            f"</blockquote>"
         )
-        await answer_callback_ephemeral(query, prompt_text, btn.build_menu(2), replace=True, use_inside_buttons=True)
+        await edit_message(query.message, prompt_text, btn.build_menu(2))
         return
     elif data[2] == "canconf":
         user_id = query.from_user.id
         gid = data[3]
         task = await get_task_by_gid(gid)
         if task is None:
-            await answer_callback_ephemeral(query, f"Task with GID <code>{gid}</code> already finished or cancelled!", replace=True)
+            await query.answer(f"Task with GID {gid} already finished or cancelled!", show_alert=True)
+            await update_status_message(key, force=True)
             return
         if (
             Config.OWNER_ID != user_id
             and task.listener.user_id != user_id
             and (user_id not in user_data or not user_data[user_id].get("SUDO"))
         ):
-            await answer_callback_ephemeral(query, "This task is not for you!", replace=False)
+            await query.answer("This task is not for you!", show_alert=True)
             return
         task_name = task.name()
         obj = task.task()
         await obj.cancel_task()
-        btn = ButtonMaker()
-        btn.data_button("Back to Status", f"status {key} ref", style=ButtonStyle.PRIMARY)
-        done_text = (
-            f"<b>Task Cancelled!</b>\n<code>{task_name}</code>\n"
-            f'<tg-button-row align="center">'
-            f'<tg-button type="callback_data" data="status {key} ref" style="primary">Back to Status</tg-button>'
-            f'</tg-button-row>'
-        )
-        await answer_callback_ephemeral(query, done_text, btn.build_menu(1), replace=True, use_inside_buttons=True)
+        await query.answer(f"Task Cancelled: {task_name}", show_alert=True)
+        await update_status_message(key, force=True)
         return
     elif data[2] == "sel":
         user_id = query.from_user.id
         gid = data[3]
         task = await get_task_by_gid(gid)
         if task is None:
-            await answer_callback_ephemeral(query, f"Task with GID <code>{gid}</code> not found!", replace=True)
+            await query.answer("Task not found!", show_alert=True)
             return
         if (
             Config.OWNER_ID != user_id
             and task.listener.user_id != user_id
             and (user_id not in user_data or not user_data[user_id].get("SUDO"))
         ):
-            await answer_callback_ephemeral(query, "This task is not for you!", replace=False)
+            await query.answer("This task is not for you!", show_alert=True)
             return
         if not iscoroutinefunction(task.status):
-            await answer_callback_ephemeral(query, "The task has finished the download stage!", replace=True)
+            await query.answer("The task has finished the download stage!", show_alert=True)
             return
         st = await task.status()
         if st not in [
@@ -196,7 +187,7 @@ async def status_pages(_, query):
             MirrorStatus.STATUS_PAUSED,
             MirrorStatus.STATUS_QUEUEDL,
         ]:
-            await answer_callback_ephemeral(query, f"Task status ({st}) does not support file selection!", replace=True)
+            await query.answer(f"Task status ({st}) does not support file selection!", show_alert=True)
             return
         try:
             if not task.queued:
@@ -214,11 +205,17 @@ async def status_pages(_, query):
                         LOGGER.error(f"{e} Error in pause")
             task.listener.select = True
             SBUTTONS = bt_selection_buttons(id_)
-            msg = "<b>Download Paused!</b>\n\n<i>Select your files &amp; press <b>Done Selecting</b> to start.</i>"
-            await answer_callback_ephemeral(query, msg, SBUTTONS, replace=True, use_inside_buttons=True)
+            msg = (
+                "<b>Download Paused!</b>\n\n"
+                "<blockquote>"
+                "<i>Select your files &amp; press <b>Done Selecting</b> to start.</i>"
+                "</blockquote>"
+            )
+            await send_message(query.message, msg, SBUTTONS)
+            await query.answer()
             return
         except Exception as e:
-            await answer_callback_ephemeral(query, f"Selection error: {e}", replace=True)
+            await query.answer(f"Selection error: {e}", show_alert=True)
             return
     elif data[2] == "ov":
         message = query.message
@@ -310,7 +307,7 @@ async def status_pages(_, query):
                     tasks["Download"] += 1
 
         msg = f"""㊂ <b>Tasks Overview</b> :
-        
+<blockquote expandable>
 ┎ <b>Download:</b> {tasks["Download"]} | <b>Upload:</b> {tasks["Upload"]}
 ┠ <b>Seed:</b> {tasks["Seed"]} | <b>Archive:</b> {tasks["Archive"]}
 ┠ <b>Extract:</b> {tasks["Extract"]} | <b>Split:</b> {tasks["Split"]}
@@ -322,13 +319,10 @@ async def status_pages(_, query):
 ┟ <b>Total Download Speed:</b> {get_readable_file_size(dl_speed)}/s
 ┠ <b>Total Upload Speed:</b> {get_readable_file_size(up_speed)}/s
 ┖ <b>Total Seeding Speed:</b> {get_readable_file_size(seed_speed)}/s
-<tg-button-row align="center">
-  <tg-button type="callback_data" data="status {data[1]} ref" style="primary">Back to Status</tg-button>
-</tg-button-row>
-"""
+</blockquote>"""
         button = ButtonMaker()
         button.data_button("Back to Status", f"status {data[1]} ref", style=ButtonStyle.PRIMARY)
-        await answer_callback_ephemeral(query, msg, button.build_menu(), replace=True, use_inside_buttons=True)
+        await edit_message(message, msg, button.build_menu())
         return
 
     try:

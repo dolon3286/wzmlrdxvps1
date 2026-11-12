@@ -60,10 +60,6 @@ from ..helper.telegram_helper.message_utils import (
     send_message,
     update_status_message,
 )
-from ..helper.telegram_helper.ephemeral_utils import (
-    send_ephemeral_message,
-    edit_ephemeral_message,
-)
 from .rss import add_job
 from .search import initiate_search_tools
 
@@ -504,16 +500,6 @@ async def get_buttons(key=None, edit_type=None, edit_mode=False):
 
 async def update_buttons(message, key=None, edit_type=None, edit_mode=False):
     msg, button = await get_buttons(key, edit_type, edit_mode)
-    if message.chat.type.name != "PRIVATE":
-        res = await edit_ephemeral_message(
-            chat_id=message.chat.id,
-            message_id=message.id,
-            text=msg,
-            buttons=button,
-            use_inside_buttons=True,
-        )
-        if res:
-            return
     await edit_message(message, msg, button)
 
 
@@ -1357,18 +1343,6 @@ async def send_bot_settings(_, message):
     handler_dict[message.chat.id] = False
     msg, button = await get_buttons()
     globals()["start"] = 0
-    from_user = message.from_user
-    if message.chat.type.name != "PRIVATE":
-        res = await send_ephemeral_message(
-            chat_id=message.chat.id,
-            text=msg,
-            buttons=button,
-            receiver_user_id=from_user.id,
-            use_inside_buttons=True,
-        )
-        if res:
-            await delete_message(message)
-            return
     await send_message(message, msg, button)
 
 
