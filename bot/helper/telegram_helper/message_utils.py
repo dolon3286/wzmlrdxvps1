@@ -31,11 +31,17 @@ from ..ext_utils.bot_utils import SetInterval, download_image_url, fetch_drive_c
 from ..ext_utils.exceptions import TgLinkException
 from ..ext_utils.status_utils import get_readable_message
 from .button_build import ButtonMaker
-from .ephemeral_utils import clean_inside_buttons
+from .ephemeral_utils import clean_inside_buttons, send_rich_message, edit_rich_message, RichBotMessage
 
 
 async def send_message(message, text, buttons=None, block=True, photo=None, **kwargs):
     try:
+        chat_id = message.chat.id if hasattr(message, "chat") and hasattr(message.chat, "id") else (int(message) if isinstance(message, (int, str)) else 0)
+        if ("<table" in str(text) or "<tg-button" in str(text)) and not photo:
+            rich_msg = await send_rich_message(chat_id, text, buttons)
+            if rich_msg:
+                return rich_msg
+
         text = clean_inside_buttons(text)
         if photo:
             try:
@@ -153,6 +159,13 @@ async def send_message(message, text, buttons=None, block=True, photo=None, **kw
 
 async def edit_message(message, text, buttons=None, block=True, photo=None):
     try:
+        chat_id = message.chat.id if hasattr(message, "chat") and hasattr(message.chat, "id") else 0
+        msg_id = getattr(message, "id", None) or getattr(message, "message_id", 0)
+        if ("<table" in str(text) or "<tg-button" in str(text)) and not getattr(message, "media", None) and not photo:
+            rich_msg = await edit_rich_message(chat_id, msg_id, text, buttons)
+            if rich_msg:
+                return rich_msg
+
         text = clean_inside_buttons(text)
         if message.media:
             if photo:
@@ -265,7 +278,7 @@ async def send_rss(text, chat_id, thread_id):
 
 
 async def delete_message(*args):
-    tasks = [msg.delete() for msg in args if isinstance(msg, Message)]
+    tasks = [msg.delete() for msg in args if isinstance(msg, Message) or hasattr(msg, "delete")]
     if not tasks:
         return
     results = await gather(*tasks, return_exceptions=True)
@@ -396,8 +409,9 @@ async def update_status_message(sid, force=False):
                 del intervals["status"][sid]
             return
         if text != status_dict[sid]["message"].text:
+            photo_arg = None if ("<table" in str(text) or "<tg-button" in str(text)) else "IMAGES"
             message = await edit_message(
-                status_dict[sid]["message"], text, buttons, block=False, photo="IMAGES"
+                status_dict[sid]["message"], text, buttons, block=False, photo=photo_arg
             )
             if isinstance(message, str):
                 if message.startswith("Telegram says: [40"):
@@ -410,6 +424,8 @@ async def update_status_message(sid, force=False):
                         f"Status with id: {sid} haven't been updated. Error: {message}"
                     )
                 return
+            if message and not isinstance(message, str):
+                status_dict[sid]["message"] = message
             status_dict[sid]["message"].text = text
             status_dict[sid]["time"] = time()
 
@@ -434,26 +450,34 @@ async def send_status_message(msg, user_id=0):
                     del intervals["status"][sid]
                 return
             old_message = status_dict[sid]["message"]
-            message = await send_message(msg, text, buttons, block=False, photo="IMAGES")
+            photo_arg = None if ("<table" in str(text) or "<tg-button" in str(text)) else "IMAGES"
+            message = await send_message(msg, text, buttons, block=False, photo=photo_arg)
             if isinstance(message, str):
                 LOGGER.error(
                     f"Status with id: {sid} haven't been sent. Error: {message}"
                 )
                 return
             await delete_message(old_message)
-            message.text = text
+            if not isinstance(message, RichBotMessage):
+                message = RichBotMessage(message, text=text)
+            else:
+                message.text = text
             status_dict[sid].update({"message": message, "time": time()})
         else:
             text, buttons = await get_readable_message(sid, is_user)
             if text is None:
                 return
-            message = await send_message(msg, text, buttons, block=False, photo="IMAGES")
+            photo_arg = None if ("<table" in str(text) or "<tg-button" in str(text)) else "IMAGES"
+            message = await send_message(msg, text, buttons, block=False, photo=photo_arg)
             if isinstance(message, str):
                 LOGGER.error(
                     f"Status with id: {sid} haven't been sent. Error: {message}"
                 )
                 return
-            message.text = text
+            if not isinstance(message, RichBotMessage):
+                message = RichBotMessage(message, text=text)
+            else:
+                message.text = text
             status_dict[sid] = {
                 "message": message,
                 "time": time(),
