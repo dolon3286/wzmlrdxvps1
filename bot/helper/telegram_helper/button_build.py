@@ -43,6 +43,11 @@ class ButtonMaker:
                 menu += chunk(self.buttons[key], cols)
         return InlineKeyboardMarkup(menu)
 
+    def build_inside_html(self, align="center"):
+        from .ephemeral_utils import inside_buttons_to_html
+        menu = self.build_menu()
+        return inside_buttons_to_html(menu, align=align)
+
     def reset(self):
         for key in self.buttons:
             self.buttons[key].clear()
