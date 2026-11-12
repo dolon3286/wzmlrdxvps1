@@ -241,7 +241,6 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
     EM_13 = '<tg-emoji emoji-id="5285535716808342592">☠️</tg-emoji>'
     # ----------------------------------------
 
-    buttons = ButtonMaker()
     for index, task in enumerate(
         tasks[start_position : STATUS_LIMIT + start_position], start=1
     ):
@@ -257,16 +256,16 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             msg += f"\n┖ <b>Sub Name</b> → <i>{task.listener.subname}</i>"
         elapsed = time() - task.listener.message.date.timestamp()
 
-        msg += f"\n\n<b>Task By <code>{task.listener.message.from_user.mention(style='html')}</code> </b> ( #ID{task.listener.message.from_user.id} )"
-        if task.listener.is_super_chat:
-            msg += f" <i>[<a href='{task.listener.message.link}'>Link</a>]</i>"
+        link_str = f" <i>[<a href='{task.listener.message.link}'>Link</a>]</i>" if task.listener.is_super_chat else ""
+        msg += f"\n<blockquote expandable>"
+        msg += f"<b>Task By <code>{task.listener.message.from_user.mention(style='html')}</code> </b> ( #ID{task.listener.message.from_user.id} ){link_str}"
 
         if (
             tstatus not in [MirrorStatus.STATUS_SEED, MirrorStatus.STATUS_QUEUEUP]
             and task.listener.progress
         ):
             progress = task.progress()
-            msg += f"\n{EM_1} {get_progress_bar_string(progress)} <i>{progress}</i>"
+            msg += f"\n: {EM_1} {get_progress_bar_string(progress)} <i>{progress}</i>"
             if task.listener.subname:
                 subsize = f" / {get_readable_file_size(task.listener.subsize)}"
                 ac = len(task.listener.files_to_proceed)
@@ -287,7 +286,6 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
                     msg += f"\n{EM_2} <b>Seeders</b> → {task.seeders_num()} | <b>Leechers</b> → {task.leechers_num()}"
                 except Exception:
                     pass
-            # TODO: Add Connected Peers
         elif tstatus == MirrorStatus.STATUS_SEED:
             msg += f"\n{EM_6} <b>Size</b> → <i>{task.size()}</i> | <b>Uploaded</b>  → <i>{task.uploaded_bytes()}</i>"
             msg += f"\n{EM_3} <b>Status</b> → <b>{tstatus}</b>"
@@ -299,38 +297,21 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         msg += f"\n{EM_13} <b>Engine</b> → <i>{task.engine}</i>"
         msg += f"\n{EM_7} <b>In Mode</b> → <i>{task.listener.mode[0]}</i>"
         msg += f"\n{EM_8} <b>Out Mode</b> → <i>{task.listener.mode[1]}</i>"
+        from ..telegram_helper.bot_commands import BotCommands
         gid_short = task.gid()[:8]
-        task_btns_html = []
-        if tstatus in [
-            MirrorStatus.STATUS_DOWNLOAD,
-            MirrorStatus.STATUS_PAUSED,
-            MirrorStatus.STATUS_QUEUEDL,
-        ]:
-            if not task.listener.is_nzb and not task.listener.is_jd:
-                task_btns_html.append(
-                    f'<tg-button type="callback_data" data="status {sid} sel {gid_short}" style="primary">📂 Select #{index}</tg-button>'
-                )
-                buttons.data_button(
-                    f"📂 Select #{index}",
-                    f"status {sid} sel {gid_short}",
-                    position="f_body",
-                    style=ButtonStyle.PRIMARY,
-                )
+        is_torrent = getattr(task.listener, "is_torrent", False) or getattr(task.listener, "is_qbit", False)
+        if (
+            tstatus in [
+                MirrorStatus.STATUS_DOWNLOAD,
+                MirrorStatus.STATUS_PAUSED,
+                MirrorStatus.STATUS_QUEUEDL,
+            ]
+            and is_torrent
+        ):
+            msg += f"\n{EM_2} <b>Select</b> → /{BotCommands.SelectCommand[1]}_{gid_short}"
 
-        task_btns_html.append(
-            f'<tg-button type="callback_data" data="status {sid} can {gid_short}" style="danger">❌ Cancel #{index}</tg-button>'
-        )
-        buttons.data_button(
-            f"❌ Cancel #{index}",
-            f"status {sid} can {gid_short}",
-            position="f_body",
-            style=ButtonStyle.DANGER,
-        )
-
-        if task_btns_html:
-            msg += f"\n<tg-button-row align=\"left\">{''.join(task_btns_html)}</tg-button-row>\n\n"
-        else:
-            msg += "\n\n"
+        msg += f"\n{EM_9} <b>Stop</b> → <i>/{BotCommands.CancelTaskCommand[1]}_{gid_short}</i>"
+        msg += "</blockquote>\n\n"
 
     if len(msg) == 0:
         if status == "All":
@@ -339,6 +320,14 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             msg = f"No Active {status} Tasks!\n\n"
 
     msg += f"\n{EM_12} <b><u>Bot Stats</u></b>"
+    if len(tasks) > STATUS_LIMIT:
+        msg += f" <b>Page:</b> {page_no}/{pages} | <b>Tasks:</b> {tasks_no} | <b>Step:</b> {page_step}\n"
+    msg += f"<blockquote>"
+    msg += f"{EM_10} <b>CPU</b> → {cpu_percent()}% | <b>F</b> → {get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)} [{round(100 - disk_usage(DOWNLOAD_DIR).percent, 1)}%]"
+    msg += f"\n{EM_11} <b>RAM</b> → {virtual_memory().percent}% | <b>UP</b> → {get_readable_time(time() - bot_start_time)}"
+    msg += "</blockquote>"
+
+    buttons = ButtonMaker()
     if not is_user:
         buttons.data_button(
             "📜 TStats",
@@ -347,7 +336,6 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
             style=ButtonStyle.PRIMARY,
         )
     if len(tasks) > STATUS_LIMIT:
-        msg += f"<b>Page:</b> {page_no}/{pages} | <b>Tasks:</b> {tasks_no} | <b>Step:</b> {page_step}\n"
         buttons.data_button("<<", f"status {sid} pre", position="header")
         buttons.data_button(">>", f"status {sid} nex", position="header")
         if tasks_no > 30:
@@ -360,11 +348,5 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
     buttons.data_button(
         "♻️ Refresh", f"status {sid} ref", position="header", style=ButtonStyle.PRIMARY
     )
-    # Add top inside buttons for TStats and Refresh in rich message text
-    tstats_btn = f'<tg-button type="callback_data" data="status {sid} ov" style="primary">📜 TStats</tg-button>' if not is_user else ''
-    refresh_btn = f'<tg-button type="callback_data" data="status {sid} ref" style="primary">♻️ Refresh</tg-button>'
-    msg += f"\n<tg-button-row align=\"center\">{tstats_btn}{refresh_btn}</tg-button-row>"
     button = buttons.build_menu(8)
-    msg += f"\n{EM_10} <b>CPU</b> → {cpu_percent()}% | <b>F</b> → {get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)} [{round(100 - disk_usage(DOWNLOAD_DIR).percent, 1)}%]"
-    msg += f"\n{EM_11} <b>RAM</b> → {virtual_memory().percent}% | <b>UP</b> → {get_readable_time(time() - bot_start_time)}"
     return msg, button
