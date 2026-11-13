@@ -209,8 +209,6 @@ EM_10 = '<tg-emoji emoji-id="5285439518130857782">❤️</tg-emoji>'
 EM_11 = '<tg-emoji emoji-id="5190642636356072894">☔️</tg-emoji>'
 EM_12 = '<tg-emoji emoji-id="5256218768262056531">🟪</tg-emoji>'
 EM_13 = '<tg-emoji emoji-id="5285535716808342592">☠️</tg-emoji>'
-EM_14 = '<tg-emoji emoji-id="5224607267797606837">⚡</tg-emoji>'
-EM_15 = '<tg-emoji emoji-id="5305265301917549162">📎</tg-emoji>'
 PRG_FULL = '<tg-emoji emoji-id="5321086282103792429">🌷</tg-emoji>'
 PRG_EMPTY = '<tg-emoji emoji-id="5971816626796892111">🔹</tg-emoji>'
 # ----------------------------------------
@@ -266,7 +264,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         user_id = from_user.id if from_user else getattr(task.listener, "user_id", 0)
         user_name = escape((from_user.first_name if from_user else None) or "User")
         user_mention = f'<a href="tg://user?id={user_id}">{user_name}</a>'
-        msg += f"{EM_14} <b>Task By</b> {user_mention} ( #ID{user_id} ){link_str}<br>\n"
+        msg += f"{EM_4} <b>Task By</b> {user_mention} ( #ID{user_id} ){link_str}<br>\n"
 
         # Task progress check
         has_prog = (
@@ -345,7 +343,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         msg += f"<b>Page:</b> {page_no}/{pages} | <b>Tasks:</b> {tasks_no} | <b>Step:</b> {page_step}<br>\n"
 
     msg += '<table border="1">\n'
-    msg += f'<tr><th>{EM_10} CPU</th><th>{EM_15} Free</th><th>{EM_11} RAM</th><th>{EM_4} UP</th></tr>\n'
+    msg += f'<tr><th>{EM_10} CPU</th><th>☕ Free</th><th>{EM_11} RAM</th><th>{EM_4} UP</th></tr>\n'
     msg += f'<tr><td>{cpu_percent()}%</td><td>{get_readable_file_size(disk_usage(DOWNLOAD_DIR).free)} [{round(100 - disk_usage(DOWNLOAD_DIR).percent, 1)}%]</td><td>{virtual_memory().percent}%</td><td>{get_readable_time(time() - bot_start_time)}</td></tr>\n'
     msg += '</table>\n'
 
@@ -356,7 +354,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         msg += f'<tg-button type="callback_data" data="status {sid} nex">&gt;&gt;</tg-button>'
     if not is_user:
         msg += f'<tg-button type="callback_data" data="status {sid} ov" style="primary">📜 TStats</tg-button>'
-    msg += f'<tg-button type="callback_data" data="status {sid} ref" style="primary">♻️ Refresh</tg-button>'
+    msg += f'<tg-button type="callback_data" data="status {sid} ref" style="success">♻️ Refresh</tg-button>'
     msg += '</tg-button-row>'
 
     return msg, None
