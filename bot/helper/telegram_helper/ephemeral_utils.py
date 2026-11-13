@@ -1,5 +1,5 @@
 import re
-from html import escape
+from html import escape, unescape as html_unescape
 import aiohttp
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ButtonStyle
@@ -148,6 +148,7 @@ def clean_rich_to_html(text):
     s = re.sub(r'<tr>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*</tr>', r'\1 | \2 | \3 | \4\n', s, flags=re.IGNORECASE)
     # Convert <caption> and 2-column table rows (both <th> and <td>)
     s = re.sub(r'<caption(?:\s+[^>]*)?>(.*?)</caption>', r'<b>\1</b>\n', s, flags=re.DOTALL | re.IGNORECASE)
+    s = re.sub(r'<tr>\s*<t[hd]\s+colspan=["\']?2["\']?>(.*?)</t[hd]>\s*</tr>', r'<b>\1</b>\n', s, flags=re.DOTALL | re.IGNORECASE)
     s = re.sub(r'<tr>\s*<th>(.*?)</th>\s*<th>(.*?)</th>\s*</tr>', r'<b>\1:</b> \2\n', s, flags=re.IGNORECASE)
     s = re.sub(r'<tr>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*</tr>', r'<b>\1:</b> \2\n', s, flags=re.IGNORECASE)
     # Strip remaining table tags
@@ -173,11 +174,11 @@ def extract_buttons_from_html(text):
         btns = re.findall(r'<tg-button\s+([^>]*?)>(.*?)</tg-button>', row, flags=re.DOTALL | re.IGNORECASE)
         for attrs_str, label in btns:
             attrs = dict(re.findall(r'(\w+)=["\']([^"\']*)["\']', attrs_str))
-            item = {"text": label.strip()}
+            item = {"text": html_unescape(label.strip())}
             if "url" in attrs:
-                item["url"] = attrs["url"]
+                item["url"] = html_unescape(attrs["url"])
             elif "data" in attrs:
-                item["callback_data"] = attrs["data"]
+                item["callback_data"] = html_unescape(attrs["data"])
             if "style" in attrs:
                 item["style"] = attrs["style"]
             btn_row.append(item)
@@ -314,7 +315,7 @@ async def send_rich_message(chat_id, text, buttons=None, parse_mode="HTML", use_
     rich_html = _normalize_rich_html(text)
     markup = keyboard_to_bot_api(buttons) if buttons else None
 
-    if use_inside_buttons and markup and "<tg-button" not in rich_html:
+    if (use_inside_buttons or "<table" in rich_html) and markup and "<tg-button" not in rich_html:
         inside_html = inside_buttons_to_html(markup)
         if inside_html:
             rich_html = f"{rich_html}\n\n{inside_html}"
@@ -367,7 +368,7 @@ async def edit_rich_message(chat_id, message_id, text, buttons=None, parse_mode=
     rich_html = _normalize_rich_html(text)
     markup = keyboard_to_bot_api(buttons) if buttons else None
 
-    if use_inside_buttons and markup and "<tg-button" not in rich_html:
+    if (use_inside_buttons or "<table" in rich_html) and markup and "<tg-button" not in rich_html:
         inside_html = inside_buttons_to_html(markup)
         if inside_html:
             rich_html = f"{rich_html}\n\n{inside_html}"

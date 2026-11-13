@@ -44,7 +44,7 @@ async def send_message(message, text, buttons=None, block=True, photo=None, **kw
                 chat_id,
                 text,
                 buttons,
-                use_inside_buttons=use_inside_buttons,
+                use_inside_buttons=True,
                 reply_to_message_id=reply_to_id,
             )
             if rich_msg:
