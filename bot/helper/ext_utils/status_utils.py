@@ -330,7 +330,7 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         msg += '<tg-button-row align="center">'
         if can_select:
             msg += f'<tg-button type="callback_data" data="status {sid} sel {gid_short}" style="primary">📂 Select #{idx}</tg-button>'
-        msg += f'<tg-button type="callback_data" data="status {sid} can {gid_short}" style="danger">❌ Cancel #{idx}</tg-button>'
+        msg += f'<tg-button type="callback_data" data="status {sid} can {gid_short}" style="danger"> Cancel #{idx}</tg-button>'
         msg += '</tg-button-row><br><br>\n\n'
 
     if len(tasks) == 0:
