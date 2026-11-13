@@ -63,6 +63,7 @@ from ..telegram_helper.message_utils import (
     send_message,
     update_status_message,
 )
+from ..telegram_helper.ephemeral_utils import inside_buttons_to_html
 
 # --- REPLACE THESE IDs WITH REAL ONES ---
 EM_1 = '<tg-emoji emoji-id="5877219383691972108">➕</tg-emoji>'
@@ -441,71 +442,105 @@ class TaskListener(TaskConfig):
         if self.is_yt:
             buttons = ButtonMaker()
             if mime_type == "Folder/Playlist":
-                msg += f"\n{EM_14} <b>Type</b> → Playlist"
-                msg += f"\n{EM_1} <b>Total Videos</b> → {files}"
+                yt_type = "Playlist"
+                extra_yt_row = f"<tr><td>{EM_1} Total Videos</td><td>{files}</td></tr>\n"
                 if link:
                     buttons.url_button(
                         "🔗 View Playlist", link, style=ButtonStyle.PRIMARY
                     )
                 user_message = f"{self.tag}\nYour playlist ({files} videos) has been uploaded to YouTube successfully!"
             else:
-                msg += f"\n{EM_14} <b>Type</b> → Video"
+                yt_type = "Video"
+                extra_yt_row = ""
                 if link:
                     buttons.url_button("🔗 View Video", link, style=ButtonStyle.PRIMARY)
                 user_message = (
                     f"{self.tag}\nYour video has been uploaded to YouTube successfully!"
                 )
 
-            msg += f"\n\n<b>Task By: </b>{self.tag}"
+            msg = (
+                '<table border="1">\n'
+                f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
+                f'<tr><th>{EM_2} Task Size</th><th><i>{get_readable_file_size(self.size)}</i></th></tr>\n'
+                f'<tr><td>{EM_4} Time Taken</td><td>{get_readable_time(time() - self.message.date.timestamp())}</td></tr>\n'
+                f'<tr><td>{EM_7} In Mode</td><td>{self.mode[0]}</td></tr>\n'
+                f'<tr><td>{EM_8} Out Mode</td><td>{self.mode[1]}</td></tr>\n'
+                f'<tr><td>{EM_14} Type</td><td>{yt_type}</td></tr>\n'
+                f'{extra_yt_row}'
+                f'<tr><td>{EM_16} Task By</td><td>{self.tag}</td></tr>\n'
+                '</table>'
+            )
 
             button = buttons.build_menu(1) if link else None
+            inside_html = inside_buttons_to_html(button) if button else ""
+            if inside_html:
+                msg = f"{msg}\n\n{inside_html}"
+                user_message = f"{user_message}\n\n{inside_html}"
 
-            await send_message(self.user_id, msg, button)
+            await send_message(self.user_id, msg, button, use_inside_buttons=True)
             if Config.LEECH_DUMP_CHAT:
-                await send_message(int(Config.LEECH_DUMP_CHAT), msg, button)
-            await send_message(self.message, user_message, button)
+                await send_message(int(Config.LEECH_DUMP_CHAT), msg, button, use_inside_buttons=True)
+            await send_message(self.message, user_message, button, use_inside_buttons=True)
 
         elif self.is_leech:
-            msg += f"\n<b>{EM_3}Total Files: </b>{folders}"
-            if mime_type != 0:
-                msg += f"\n{EM_12} <b>Corrupted Files</b> → {mime_type}"
-            msg += f"\n{EM_16} <b>Task By</b> → {self.tag}\n\n"
+            corrupt_row = f"<tr><td>{EM_12} Corrupted Files</td><td>{mime_type}</td></tr>\n" if mime_type != 0 else ""
+            table_rows = (
+                f"<tr><th>{EM_2} Task Size</th><th><i>{get_readable_file_size(self.size)}</i></th></tr>\n"
+                f"<tr><td>{EM_4} Time Taken</td><td>{get_readable_time(time() - self.message.date.timestamp())}</td></tr>\n"
+                f"<tr><td>{EM_7} In Mode</td><td>{self.mode[0]}</td></tr>\n"
+                f"<tr><td>{EM_8} Out Mode</td><td>{self.mode[1]}</td></tr>\n"
+                f"<tr><td>{EM_3} Total Files</td><td>{folders}</td></tr>\n"
+                f"{corrupt_row}"
+                f"<tr><td>{EM_16} Task By</td><td>{self.tag}</td></tr>\n"
+            )
+            table_content = (
+                '<table border="1">\n'
+                f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
+                f'{table_rows}'
+                '</table>'
+            )
 
             if self.bot_pm:
-                pmsg = msg
-                pmsg += f"{EM_13} <b><u>Action Performed :</u></b>\n"
-                pmsg += f"{EM_4} <i>File(s) have been sent to User PM</i>\n\n"
+                pmsg = (
+                    '<table border="1">\n'
+                    f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
+                    f'{table_rows}'
+                    f'<tr><td>{EM_13} Action Performed</td><td>{EM_4} <i>File(s) have been sent to User PM</i></td></tr>\n'
+                    '</table>'
+                )
                 if self.is_super_chat:
-                    await send_message(self.message, pmsg)
+                    await send_message(self.message, pmsg, use_inside_buttons=True)
 
             if not files and not self.is_super_chat:
-                await send_message(self.message, msg)
+                await send_message(self.message, table_content, use_inside_buttons=True)
             else:
                 log_chat = self.user_id if self.bot_pm else self.message
-                msg += f"{EM_12} <b><u>Files List :</u></b>\n"
+                msg = table_content + f"<br><br>\n{EM_12} <b><u>Files List :</u></b><br>\n"
                 fmsg = ""
                 for index, (link, name) in enumerate(files.items(), start=1):
                     chat_id, msg_id = link.split("/")[-2:]
-                    fmsg += f"{index}. <a href='{link}'>{name}</a>"
+                    fmsg += f"{index}. <a href='{link}'>{escape(str(name))}</a>"
                     if Config.MEDIA_STORE and (
                         self.is_super_chat or Config.LEECH_DUMP_CHAT
                     ):
                         if chat_id.isdigit():
                             chat_id = f"-100{chat_id}"
                         flink = f"https://t.me/{TgClient.BNAME}?start={encode_slink('file' + chat_id + '&&' + msg_id)}"
-                        fmsg += f"\n{EM_11} <b>Get Media</b> → <a href='{flink}'>Store Link</a> | <a href='https://t.me/share/url?url={flink}'>Share Link</a>"
-                    fmsg += "\n"
+                        fmsg += f"<br>{EM_11} <b>Get Media</b> → <a href='{flink}'>Store Link</a> | <a href='https://t.me/share/url?url={flink}'>Share Link</a>"
+                    fmsg += "<br>\n"
                     if len(fmsg.encode() + msg.encode()) > 4000:
-                        await send_message(log_chat, msg + fmsg)
+                        await send_message(log_chat, msg + fmsg, use_inside_buttons=True)
                         await sleep(1)
                         fmsg = ""
                 if fmsg != "":
-                    await send_message(log_chat, msg + fmsg)
+                    await send_message(log_chat, msg + fmsg, use_inside_buttons=True)
         else:
-            msg += f"\n{EM_13}\n{EM_14} <b>Type</b> → {mime_type}"
+            folder_rows = ""
             if mime_type == "Folder":
-                msg += f"\n{EM_15} <b>SubFolders</b> → {folders}"
-                msg += f"\n{EM_12} <b>Files</b> → {files}"
+                folder_rows = (
+                    f"<tr><td>{EM_15} SubFolders</td><td>{folders}</td></tr>\n"
+                    f"<tr><td>{EM_12} Files</td><td>{files}</td></tr>\n"
+                )
 
             multi_link_msg = ""
             multi_links = []
@@ -514,7 +549,7 @@ class TaskListener(TaskConfig):
                 for service, result in link.items():
                     if "error" in result:
                         multi_link_msg += (
-                            f"{service.capitalize()}: Error - {result['error']}\n"
+                            f"{service.capitalize()}: Error - {result['error']}<br>\n"
                         )
                     elif result.get("link"):
                         multi_links.append(
@@ -523,6 +558,8 @@ class TaskListener(TaskConfig):
                 multi_link_msg = multi_link_msg.strip()
                 link = None  # Disable single link button logic
 
+            buttons = ButtonMaker()
+            path_row = ""
             if (
                 link
                 or rclone_path
@@ -530,7 +567,6 @@ class TaskListener(TaskConfig):
                 and not self.private_link
                 or multi_links
             ):
-                buttons = ButtonMaker()
                 if link and Config.SHOW_CLOUD_LINK:
                     if "mega.nz" in link:
                         btn_label = "🔗 Mega Link"
@@ -539,9 +575,10 @@ class TaskListener(TaskConfig):
                     buttons.url_button(btn_label, link, style=ButtonStyle.PRIMARY)
                 elif multi_links:
                     for name, url in multi_links:
-                        buttons.url_button(name, url)
+                        buttons.url_button(name, url, style=ButtonStyle.PRIMARY)
                 else:
-                    msg += f"\n\nPath: <code>{rclone_path}</code>"
+                    path_row = f"<tr><td>{EM_6} Path</td><td><code>{escape(rclone_path)}</code></td></tr>\n"
+
                 if rclone_path and Config.RCLONE_SERVE_URL and not self.private_link:
                     remote, rpath = rclone_path.split(":", 1)
                     url_path = rutils.quote(f"{rpath}")
@@ -573,25 +610,50 @@ class TaskListener(TaskConfig):
                 button = buttons.build_menu(2)
             else:
                 if not multi_link_msg and rclone_path:
-                    msg += f"\n{EM_13}\n{EM_6} Path: <code>{rclone_path}</code>"
+                    path_row = f"<tr><td>{EM_6} Path</td><td><code>{escape(rclone_path)}</code></td></tr>\n"
                 button = None
-            msg += f"\n{EM_13}\n{EM_16} <b>Task By</b> → {self.tag}\n\n"
+
+            table_rows = (
+                f"<tr><th>{EM_2} Task Size</th><th><i>{get_readable_file_size(self.size)}</i></th></tr>\n"
+                f"<tr><td>{EM_4} Time Taken</td><td>{get_readable_time(time() - self.message.date.timestamp())}</td></tr>\n"
+                f"<tr><td>{EM_7} In Mode</td><td>{self.mode[0]}</td></tr>\n"
+                f"<tr><td>{EM_8} Out Mode</td><td>{self.mode[1]}</td></tr>\n"
+                f"<tr><td>{EM_14} Type</td><td>{mime_type}</td></tr>\n"
+                f"{folder_rows}"
+                f"{path_row}"
+                f"<tr><td>{EM_16} Task By</td><td>{self.tag}</td></tr>\n"
+            )
+            msg = (
+                '<table border="1">\n'
+                f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
+                f'{table_rows}'
+                '</table>'
+            )
             group_msg = (
-                msg + f"{EM_13} <b><u>Action Performed :</u></b>\n"
-                f"{EM_11} <i>Cloud link(s) have been sent to User PM</i>\n\n"
+                '<table border="1">\n'
+                f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
+                f'{table_rows}'
+                f'<tr><td>{EM_13} Action Performed</td><td>{EM_11} <i>Cloud link(s) have been sent to User PM</i></td></tr>\n'
+                '</table>'
             )
 
             if multi_link_msg:
-                group_msg += multi_link_msg + "\n"
-                msg += multi_link_msg + "\n"
+                group_msg += f"<br>\n{multi_link_msg}\n"
+                msg += f"<br>\n{multi_link_msg}\n"
+
+            inside_html = inside_buttons_to_html(button) if button else ""
+            if inside_html:
+                msg = f"{msg}\n\n{inside_html}"
+                group_msg = f"{group_msg}\n\n{inside_html}"
 
             if self.bot_pm and self.is_super_chat:
-                await send_message(self.user_id, msg, button)
+                await send_message(self.user_id, msg, button, use_inside_buttons=True)
 
             if hasattr(Config, "MIRROR_LOG_ID") and Config.MIRROR_LOG_ID:
-                await send_message(Config.MIRROR_LOG_ID, msg, button)
+                await send_message(Config.MIRROR_LOG_ID, msg, button, use_inside_buttons=True)
 
-            await send_message(self.message, group_msg, button)
+            target_msg = group_msg if (self.bot_pm and self.is_super_chat) else msg
+            await send_message(self.message, target_msg, button, use_inside_buttons=True)
         if self.seed:
             await clean_target(self.up_dir)
             async with queue_dict_lock:
@@ -626,24 +688,32 @@ class TaskListener(TaskConfig):
             count = len(task_dict)
         await self.remove_from_same_dir()
         msg = (
-            f"""{EM_9} <b><i><u>Limit Breached:</u></i></b>
-{EM_13}
-{EM_2} <b>Task Size</b> → {get_readable_file_size(self.size)}
-{EM_7} <b>In Mode</b> → {self.mode[0]}
-{EM_8} <b>Out Mode</b> → {self.mode[1]}
-{error}"""
+            '<table border="1">\n'
+            f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
+            f'<tr><th colspan="2">{EM_9} Limit Breached</th></tr>\n'
+            f'<tr><th>{EM_2} Task Size</th><th><i>{get_readable_file_size(self.size)}</i></th></tr>\n'
+            f'<tr><td>{EM_7} In Mode</td><td>{self.mode[0]}</td></tr>\n'
+            f'<tr><td>{EM_8} Out Mode</td><td>{self.mode[1]}</td></tr>\n'
+            f'<tr><td>Reason</td><td>{escape(str(error))}</td></tr>\n'
+            f'<tr><td>{EM_16} Task By</td><td>{self.tag}</td></tr>\n'
+            '</table>'
             if is_limit
-            else f"""<i><b>{EM_9} Download Stopped!</b></i>
-{EM_13}
-{EM_1} <b>Due To</b> → {escape(str(error))}
-{EM_2} <b>Task Size</b> → {get_readable_file_size(self.size)}
-{EM_4} <b>Time Taken</b> → {get_readable_time(time() - self.message.date.timestamp())}
-{EM_7} <b>In Mode</b> → {self.mode[0]}
-{EM_8} <b>Out Mode</b> → {self.mode[1]}
-{EM_16} <b>Task By</b> → {self.tag}"""
+            else
+            '<table border="1">\n'
+            f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
+            f'<tr><th colspan="2">{EM_9} Download Stopped!</th></tr>\n'
+            f'<tr><td>{EM_1} Due To</td><td>{escape(str(error))}</td></tr>\n'
+            f'<tr><th>{EM_2} Task Size</th><th><i>{get_readable_file_size(self.size)}</i></th></tr>\n'
+            f'<tr><td>{EM_4} Time Taken</td><td>{get_readable_time(time() - self.message.date.timestamp())}</td></tr>\n'
+            f'<tr><td>{EM_7} In Mode</td><td>{self.mode[0]}</td></tr>\n'
+            f'<tr><td>{EM_8} Out Mode</td><td>{self.mode[1]}</td></tr>\n'
+            f'<tr><td>{EM_16} Task By</td><td>{self.tag}</td></tr>\n'
+            '</table>'
         )
-
-        await send_message(self.message, msg, button)
+        inside_html = inside_buttons_to_html(button) if button else ""
+        if inside_html:
+            msg = f"{msg}\n\n{inside_html}"
+        await send_message(self.message, msg, button, use_inside_buttons=True)
         if count == 0:
             await self.clean()
         else:
