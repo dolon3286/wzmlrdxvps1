@@ -171,7 +171,9 @@ def bt_selection_buttons(id_):
             f"{Config.BASE_URL}/app/files?gid={id_}",
             style=ButtonStyle.PRIMARY,
         )
-        buttons.data_button("Pincode", f"sel pin {gid} {pin}")
+        buttons.data_button(
+            "Pincode", f"sel pin {gid} {pin}", style=ButtonStyle.PRIMARY
+        )
     else:
         buttons.url_button(
             "Select Files",
