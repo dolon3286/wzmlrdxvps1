@@ -353,8 +353,8 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         msg += f'<tg-button type="callback_data" data="status {sid} pre">&lt;&lt;</tg-button>'
         msg += f'<tg-button type="callback_data" data="status {sid} nex">&gt;&gt;</tg-button>'
     if not is_user:
-        msg += f'<tg-button type="callback_data" data="status {sid} ov" style="primary">📜 TStats</tg-button>'
-    msg += f'<tg-button type="callback_data" data="status {sid} ref" style="success">♻️ Refresh</tg-button>'
+        msg += f'<tg-button type="callback_data" data="status {sid} ov" style="primary"> TStats</tg-button>'
+    msg += f'<tg-button type="callback_data" data="status {sid} ref" style="success"> Refresh</tg-button>'
     msg += '</tg-button-row>'
 
     return msg, None
