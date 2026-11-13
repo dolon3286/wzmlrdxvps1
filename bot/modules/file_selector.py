@@ -111,7 +111,7 @@ async def select(_, message):
         "<i>Select your files &amp; press <b>Done Selecting</b> to start.</i>"
         "</blockquote>"
     )
-    await send_message(message, msg, SBUTTONS)
+    await send_message(message, msg, SBUTTONS, use_inside_buttons=True)
 
 
 @new_task
