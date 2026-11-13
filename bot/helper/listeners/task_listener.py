@@ -572,10 +572,10 @@ class TaskListener(TaskConfig):
                         btn_label = "🔗 Mega Link"
                     else:
                         btn_label = "⛈️ Cloud Link"
-                    buttons.url_button(btn_label, link, style=ButtonStyle.PRIMARY)
+                    buttons.url_button(btn_label, link, style=ButtonStyle.SUCCESS)
                 elif multi_links:
                     for name, url in multi_links:
-                        buttons.url_button(name, url, style=ButtonStyle.PRIMARY)
+                        buttons.url_button(name, url, style=ButtonStyle.SUCCESS)
                 else:
                     path_row = f"<tr><td>{EM_6} Path</td><td><code>{escape(rclone_path)}</code></td></tr>\n"
 
