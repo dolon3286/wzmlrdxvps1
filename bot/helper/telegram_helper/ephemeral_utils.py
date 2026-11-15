@@ -135,7 +135,10 @@ class RichBotMessage:
 def clean_inside_buttons(text):
     if not text:
         return text
-    return re.sub(r'</?tg-button(-row)?(\s+[^>]*)?>', '', str(text))
+    s = re.sub(r'<tg-button-row(?:\s+[^>]*)?>.*?</tg-button-row>', '', str(text), flags=re.DOTALL | re.IGNORECASE)
+    s = re.sub(r'<tg-button(?:\s+[^>]*)?>.*?</tg-button>', '', s, flags=re.DOTALL | re.IGNORECASE)
+    s = re.sub(r'</?tg-button(-row)?(\s+[^>]*)?>', '', s, flags=re.IGNORECASE)
+    return s
 
 
 def clean_rich_to_html(text):

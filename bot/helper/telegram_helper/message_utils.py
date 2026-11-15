@@ -31,7 +31,14 @@ from ..ext_utils.bot_utils import SetInterval, download_image_url, fetch_drive_c
 from ..ext_utils.exceptions import TgLinkException
 from ..ext_utils.status_utils import get_readable_message
 from .button_build import ButtonMaker
-from .ephemeral_utils import clean_inside_buttons, send_rich_message, edit_rich_message, RichBotMessage
+from .ephemeral_utils import (
+    clean_inside_buttons,
+    clean_rich_to_html,
+    extract_buttons_from_html,
+    send_rich_message,
+    edit_rich_message,
+    RichBotMessage,
+)
 
 
 async def send_message(message, text, buttons=None, block=True, photo=None, **kwargs):
@@ -50,7 +57,12 @@ async def send_message(message, text, buttons=None, block=True, photo=None, **kw
             if rich_msg:
                 return rich_msg
 
-        text = clean_inside_buttons(text)
+        if "<table" in str(text) or "<tg-button" in str(text):
+            if not buttons:
+                buttons = extract_buttons_from_html(text)
+            text = clean_rich_to_html(text)
+        else:
+            text = clean_inside_buttons(text)
         if photo:
             try:
                 if photo == "IMAGES":
@@ -178,8 +190,15 @@ async def edit_message(message, text, buttons=None, block=True, photo=None, use_
             rich_msg = await edit_rich_message(chat_id, msg_id, text, buttons, use_inside_buttons=use_inside_buttons or isinstance(message, RichBotMessage))
             if rich_msg:
                 return rich_msg
+            LOGGER.warning(f"edit_rich_message failed for chat {chat_id} msg {msg_id}. Retaining current message to prevent layout collapse.")
+            return message
 
-        text = clean_inside_buttons(text)
+        if "<table" in str(text) or "<tg-button" in str(text):
+            if not buttons:
+                buttons = extract_buttons_from_html(text)
+            text = clean_rich_to_html(text)
+        else:
+            text = clean_inside_buttons(text)
         if message.media:
             if photo:
                 if photo == "IMAGES":
