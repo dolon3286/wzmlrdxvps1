@@ -439,6 +439,13 @@ class TaskListener(TaskConfig):
             f"\n{EM_8} <b>Out Mode</b> → {self.mode[1]}"
         )
         LOGGER.info(f"Task Done: {self.name}")
+        user_mention = (
+            f'<a href="tg://user?id={self.user_id}">{escape(self.tag)}</a>'
+            if (self.user_id and self.tag and not self.tag.startswith("<a "))
+            else (self.tag or (f'<a href="tg://user?id={self.user_id}">User</a>' if self.user_id else ""))
+        )
+        tag_mention = f"cc: {user_mention}\n" if user_mention else ""
+
         if self.is_yt:
             buttons = ButtonMaker()
             if mime_type == "Folder/Playlist":
@@ -459,6 +466,7 @@ class TaskListener(TaskConfig):
                 )
 
             msg = (
+                f"{tag_mention}"
                 '<table border="1">\n'
                 f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
                 f'<tr><th>{EM_2} Task Size</th><th><i>{get_readable_file_size(self.size)}</i></th></tr>\n'
@@ -467,7 +475,7 @@ class TaskListener(TaskConfig):
                 f'<tr><td>{EM_8} Out Mode</td><td>{self.mode[1]}</td></tr>\n'
                 f'<tr><td>{EM_14} Type</td><td>{yt_type}</td></tr>\n'
                 f'{extra_yt_row}'
-                f'<tr><td>{EM_16} Task By</td><td>{self.tag}</td></tr>\n'
+                f'<tr><td>{EM_16} Task By</td><td>{user_mention}</td></tr>\n'
                 '</table>'
             )
 
@@ -491,9 +499,10 @@ class TaskListener(TaskConfig):
                 f"<tr><td>{EM_8} Out Mode</td><td>{self.mode[1]}</td></tr>\n"
                 f"<tr><td>{EM_3} Total Files</td><td>{folders}</td></tr>\n"
                 f"{corrupt_row}"
-                f"<tr><td>{EM_16} Task By</td><td>{self.tag}</td></tr>\n"
+                f"<tr><td>{EM_16} Task By</td><td>{user_mention}</td></tr>\n"
             )
             table_content = (
+                f"{tag_mention}"
                 '<table border="1">\n'
                 f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
                 f'{table_rows}'
@@ -502,6 +511,7 @@ class TaskListener(TaskConfig):
 
             if self.bot_pm:
                 pmsg = (
+                    f"{tag_mention}"
                     '<table border="1">\n'
                     f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
                     f'{table_rows}'
@@ -621,15 +631,17 @@ class TaskListener(TaskConfig):
                 f"<tr><td>{EM_14} Type</td><td>{mime_type}</td></tr>\n"
                 f"{folder_rows}"
                 f"{path_row}"
-                f"<tr><td>{EM_16} Task By</td><td>{self.tag}</td></tr>\n"
+                f"<tr><td>{EM_16} Task By</td><td>{user_mention}</td></tr>\n"
             )
             msg = (
+                f"{tag_mention}"
                 '<table border="1">\n'
                 f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
                 f'{table_rows}'
                 '</table>'
             )
             group_msg = (
+                f"{tag_mention}"
                 '<table border="1">\n'
                 f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
                 f'{table_rows}'
@@ -687,7 +699,14 @@ class TaskListener(TaskConfig):
                 del task_dict[self.mid]
             count = len(task_dict)
         await self.remove_from_same_dir()
+        err_user_mention = (
+            f'<a href="tg://user?id={self.user_id}">{escape(self.tag)}</a>'
+            if (self.user_id and self.tag and not self.tag.startswith("<a "))
+            else (self.tag or (f'<a href="tg://user?id={self.user_id}">User</a>' if self.user_id else ""))
+        )
+        err_tag_mention = f"cc: {err_user_mention}\n" if err_user_mention else ""
         msg = (
+            f"{err_tag_mention}"
             '<table border="1">\n'
             f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
             f'<tr><th colspan="2">{EM_9} Limit Breached</th></tr>\n'
@@ -695,10 +714,11 @@ class TaskListener(TaskConfig):
             f'<tr><td>{EM_7} In Mode</td><td>{self.mode[0]}</td></tr>\n'
             f'<tr><td>{EM_8} Out Mode</td><td>{self.mode[1]}</td></tr>\n'
             f'<tr><td>Reason</td><td>{escape(str(error))}</td></tr>\n'
-            f'<tr><td>{EM_16} Task By</td><td>{self.tag}</td></tr>\n'
+            f'<tr><td>{EM_16} Task By</td><td>{err_user_mention}</td></tr>\n'
             '</table>'
             if is_limit
             else
+            f"{err_tag_mention}"
             '<table border="1">\n'
             f'<caption><b><i>{escape(self.name)}</i></b></caption>\n'
             f'<tr><th colspan="2">{EM_9} Download Stopped!</th></tr>\n'
@@ -707,7 +727,7 @@ class TaskListener(TaskConfig):
             f'<tr><td>{EM_4} Time Taken</td><td>{get_readable_time(time() - self.message.date.timestamp())}</td></tr>\n'
             f'<tr><td>{EM_7} In Mode</td><td>{self.mode[0]}</td></tr>\n'
             f'<tr><td>{EM_8} Out Mode</td><td>{self.mode[1]}</td></tr>\n'
-            f'<tr><td>{EM_16} Task By</td><td>{self.tag}</td></tr>\n'
+            f'<tr><td>{EM_16} Task By</td><td>{err_user_mention}</td></tr>\n'
             '</table>'
         )
         inside_html = inside_buttons_to_html(button) if button else ""
