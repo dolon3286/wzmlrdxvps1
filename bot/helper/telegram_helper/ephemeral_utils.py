@@ -157,6 +157,10 @@ def clean_rich_to_html(text):
     s = re.sub(r'<tr>\s*<td>(.*?)</td>\s*<td>(.*?)</td>\s*</tr>', r'<b>\1:</b> \2\n', s, flags=re.IGNORECASE)
     # Strip remaining table tags
     s = re.sub(r'</?(table|caption|thead|tbody|tfoot|tr|th|td)(\s+[^>]*)?>', '', s, flags=re.IGNORECASE)
+    # Convert headings h1-h6 to bold for standard HTML fallback
+    s = re.sub(r'<h[1-6](?:\s+[^>]*)?>(.*?)</h[1-6]>', r'<b>\1</b>\n', s, flags=re.DOTALL | re.IGNORECASE)
+    # Strip mark tags for standard HTML fallback
+    s = re.sub(r'</?mark(?:\s+[^>]*)?>', '', s, flags=re.IGNORECASE)
     # Strip button rows entirely so button label doesn't leak into body text
     s = re.sub(r'<tg-button-row(?:\s+[^>]*)?>.*?</tg-button-row>', '', s, flags=re.DOTALL | re.IGNORECASE)
     s = re.sub(r'<tg-button(?:\s+[^>]*)?>.*?</tg-button>', '', s, flags=re.DOTALL | re.IGNORECASE)
