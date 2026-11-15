@@ -1,4 +1,5 @@
 import re
+import asyncio
 from html import escape, unescape as html_unescape
 import aiohttp
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -237,6 +238,9 @@ def keyboard_to_bot_api(reply_markup):
             mapped_style = _map_btn_style(style)
             if mapped_style:
                 item["style"] = mapped_style
+            icon_id = getattr(btn, "icon_custom_emoji_id", None)
+            if icon_id:
+                item["icon_custom_emoji_id"] = str(icon_id)
             api_row.append(item)
         if api_row:
             api_keyboard.append(api_row)
@@ -266,18 +270,20 @@ def inside_buttons_to_html(reply_markup, align="center"):
             web_app = btn.get("web_app") if isinstance(btn, dict) else getattr(btn, "web_app", None)
             style = btn.get("style") if isinstance(btn, dict) else getattr(btn, "style", None)
             style_str = f' style="{_map_btn_style(style)}"' if _map_btn_style(style) else ""
+            icon_id = btn.get("icon_custom_emoji_id") if isinstance(btn, dict) else getattr(btn, "icon_custom_emoji_id", None)
+            icon_str = f' icon_custom_emoji_id="{escape(str(icon_id), quote=True)}"' if icon_id else ""
 
             safe_text = escape(str(text))
             if url:
                 safe_url = escape(str(url), quote=True)
-                row_tags.append(f'<tg-button type="url" url="{safe_url}"{style_str}>{safe_text}</tg-button>')
+                row_tags.append(f'<tg-button type="url" url="{safe_url}"{style_str}{icon_str}>{safe_text}</tg-button>')
             elif cb:
                 safe_cb = escape(str(cb), quote=True)
-                row_tags.append(f'<tg-button type="callback_data" data="{safe_cb}"{style_str}>{safe_text}</tg-button>')
+                row_tags.append(f'<tg-button type="callback_data" data="{safe_cb}"{style_str}{icon_str}>{safe_text}</tg-button>')
             elif web_app:
                 wa_url = web_app.get("url") if isinstance(web_app, dict) else getattr(web_app, "url", "")
                 safe_wa = escape(str(wa_url), quote=True)
-                row_tags.append(f'<tg-button type="web_app" url="{safe_wa}"{style_str}>{safe_text}</tg-button>')
+                row_tags.append(f'<tg-button type="web_app" url="{safe_wa}"{style_str}{icon_str}>{safe_text}</tg-button>')
         if row_tags:
             if len(row_tags) > 8:
                 for i in range(0, len(row_tags), 4):
@@ -287,21 +293,66 @@ def inside_buttons_to_html(reply_markup, align="center"):
     return "\n".join(html_blocks)
 
 
-async def call_bot_api(method, payload, timeout=10):
+_bot_api_session = None
+
+
+async def get_bot_api_session():
+    global _bot_api_session
+    if _bot_api_session is None or _bot_api_session.closed:
+        connector = aiohttp.TCPConnector(
+            limit=100,
+            keepalive_timeout=60,
+            enable_cleanup_closed=True,
+            ttl_dns_roundrobin=True,
+        )
+        _bot_api_session = aiohttp.ClientSession(
+            connector=connector,
+            timeout=aiohttp.ClientTimeout(total=20, connect=8),
+        )
+    return _bot_api_session
+
+
+async def call_bot_api(method, payload, timeout=12, retries=3):
     token = Config.BOT_TOKEN
     if not token:
         return None
     url = f"https://api.telegram.org/bot{token}/{method}"
-    try:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
-            async with session.post(url, json=payload) as resp:
+
+    for attempt in range(1, retries + 1):
+        try:
+            session = await get_bot_api_session()
+            client_timeout = aiohttp.ClientTimeout(total=timeout)
+            async with session.post(url, json=payload, timeout=client_timeout) as resp:
                 data = await resp.json()
                 if not data.get("ok"):
-                    LOGGER.warning(f"Bot API {method} returned not ok: {data}")
+                    desc = data.get("description", "").lower()
+                    if "message is not modified" not in desc:
+                        LOGGER.warning(f"Bot API {method} returned not ok: {data}")
                 return data
-    except Exception as e:
-        LOGGER.warning(f"Bot API call {method} exception: {e}")
-        return None
+        except (
+            aiohttp.ClientConnectionError,
+            aiohttp.ClientOSError,
+            aiohttp.ServerDisconnectedError,
+            asyncio.TimeoutError,
+            ConnectionResetError,
+        ) as e:
+            # Stale or reset keepalive connection: recycle session and retry
+            global _bot_api_session
+            if _bot_api_session and not _bot_api_session.closed:
+                try:
+                    await _bot_api_session.close()
+                except Exception:
+                    pass
+            _bot_api_session = None
+            if attempt < retries:
+                await asyncio.sleep(0.4 * attempt)
+                continue
+            LOGGER.warning(f"Bot API call {method} exception: {e}")
+            return None
+        except Exception as e:
+            LOGGER.warning(f"Bot API call {method} exception: {e}")
+            return None
+    return None
 
 
 def _normalize_rich_html(text):
