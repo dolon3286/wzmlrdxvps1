@@ -204,11 +204,8 @@ async def status_pages(_, query):
         if task is None:
             await query.answer("Task not found!", show_alert=True)
             return
-        if (
-            Config.OWNER_ID != user_id
-            and task.listener.user_id != user_id
-            and (user_id not in user_data or not user_data[user_id].get("SUDO"))
-        ):
+        task_user_id = getattr(task.listener, "user_id", None)
+        if task_user_id is None or int(task_user_id) != int(user_id):
             await query.answer("This task is not for you!", show_alert=True)
             return
         if not iscoroutinefunction(task.status):

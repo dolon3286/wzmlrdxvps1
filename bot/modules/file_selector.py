@@ -59,11 +59,8 @@ async def select(_, message):
         )
         await send_message(message, msg)
         return
-    if (
-        Config.OWNER_ID != user_id
-        and task.listener.user_id != user_id
-        and (user_id not in user_data or not user_data[user_id].get("SUDO"))
-    ):
+    task_user_id = getattr(task.listener, "user_id", None)
+    if task_user_id is None or int(task_user_id) != int(user_id):
         await send_message(message, "This task is not for you!")
         return
     if not iscoroutinefunction(task.status):
@@ -124,8 +121,10 @@ async def confirm_selection(_, query):
         await query.answer("This task has been cancelled!", show_alert=True)
         await delete_message(message)
         return
-    if user_id != task.listener.user_id:
+    task_user_id = getattr(task.listener, "user_id", None)
+    if task_user_id is None or int(task_user_id) != int(user_id):
         await query.answer("This task is not for you!", show_alert=True)
+        return
     elif data[1] == "pin":
         await query.answer(data[3], show_alert=True)
     elif data[1] == "done":
