@@ -253,8 +253,8 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         else:
             tstatus = task.status()
 
-        # Task header line 1: index and title
-        msg += f"<b>{idx}. {escape(task.name())}</b><br>\n"
+        # Task header line 1: index and title in heading 4, marked with italics
+        msg += f"<h4><mark><i>{idx}. {escape(task.name())}</i></mark></h4>\n"
         if task.listener.subname:
             msg += f"┖ <b>Sub Name</b> → <i>{task.listener.subname}</i><br>\n"
 
@@ -355,8 +355,8 @@ async def get_readable_message(sid, is_user, page_no=1, status="All", page_step=
         msg += f'<tg-button type="callback_data" data="status {sid} pre">&lt;&lt;</tg-button>'
         msg += f'<tg-button type="callback_data" data="status {sid} nex">&gt;&gt;</tg-button>'
     if not is_user:
-        msg += f'<tg-button type="callback_data" data="status {sid} ov" style="primary"> TStats</tg-button>'
-    msg += f'<tg-button type="callback_data" data="status {sid} ref" style="success"> Refresh</tg-button>'
+        msg += f'<tg-button type="callback_data" data="status {sid} ov" style="primary">📜 TStats</tg-button>'
+    msg += f'<tg-button type="callback_data" data="status {sid} ref" style="success">♻️ Refresh</tg-button>'
     msg += '</tg-button-row>'
 
     return msg, None
