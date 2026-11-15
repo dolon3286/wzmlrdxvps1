@@ -59,10 +59,24 @@ async def send_message(message, text, buttons=None, block=True, photo=None, **kw
 
         if "<table" in str(text) or "<tg-button" in str(text):
             if not buttons:
-                buttons = extract_buttons_from_html(text)
+                buttons = extract_buttons_from_html(text, as_pyrogram=True)
             text = clean_rich_to_html(text)
         else:
             text = clean_inside_buttons(text)
+
+        if isinstance(buttons, dict) and "inline_keyboard" in buttons:
+            from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            pyro_rows = []
+            for r in buttons["inline_keyboard"]:
+                row = []
+                for b in r:
+                    if "url" in b:
+                        row.append(InlineKeyboardButton(text=b.get("text", ""), url=b["url"]))
+                    elif "callback_data" in b:
+                        row.append(InlineKeyboardButton(text=b.get("text", ""), callback_data=b["callback_data"]))
+                if row:
+                    pyro_rows.append(row)
+            buttons = InlineKeyboardMarkup(pyro_rows) if pyro_rows else None
         if photo:
             try:
                 if photo == "IMAGES":
@@ -195,10 +209,24 @@ async def edit_message(message, text, buttons=None, block=True, photo=None, use_
 
         if "<table" in str(text) or "<tg-button" in str(text):
             if not buttons:
-                buttons = extract_buttons_from_html(text)
+                buttons = extract_buttons_from_html(text, as_pyrogram=True)
             text = clean_rich_to_html(text)
         else:
             text = clean_inside_buttons(text)
+
+        if isinstance(buttons, dict) and "inline_keyboard" in buttons:
+            from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+            pyro_rows = []
+            for r in buttons["inline_keyboard"]:
+                row = []
+                for b in r:
+                    if "url" in b:
+                        row.append(InlineKeyboardButton(text=b.get("text", ""), url=b["url"]))
+                    elif "callback_data" in b:
+                        row.append(InlineKeyboardButton(text=b.get("text", ""), callback_data=b["callback_data"]))
+                if row:
+                    pyro_rows.append(row)
+            buttons = InlineKeyboardMarkup(pyro_rows) if pyro_rows else None
         if message.media:
             if photo:
                 if photo == "IMAGES":

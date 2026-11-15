@@ -168,26 +168,39 @@ def clean_rich_to_html(text):
     return s
 
 
-def extract_buttons_from_html(text):
+def extract_buttons_from_html(text, as_pyrogram=False):
     if not text or "<tg-button" not in text:
         return None
     matrix = []
+    pyro_matrix = []
     rows = re.findall(r'<tg-button-row(?:\s+[^>]*)?>(.*?)</tg-button-row>', text, flags=re.DOTALL | re.IGNORECASE)
     for row in rows:
         btn_row = []
+        pyro_row = []
         btns = re.findall(r'<tg-button\s+([^>]*?)>(.*?)</tg-button>', row, flags=re.DOTALL | re.IGNORECASE)
         for attrs_str, label in btns:
             attrs = dict(re.findall(r'(\w+)=["\']([^"\']*)["\']', attrs_str))
-            item = {"text": html_unescape(label.strip())}
-            if "url" in attrs:
-                item["url"] = html_unescape(attrs["url"])
-            elif "data" in attrs:
-                item["callback_data"] = html_unescape(attrs["data"])
+            text_val = html_unescape(label.strip())
+            item = {"text": text_val}
+            url = html_unescape(attrs.get("url", "")) if "url" in attrs else None
+            data = html_unescape(attrs.get("data", "")) if "data" in attrs else None
+            if url:
+                item["url"] = url
+            elif data:
+                item["callback_data"] = data
             if "style" in attrs:
                 item["style"] = attrs["style"]
             btn_row.append(item)
+            if url:
+                pyro_row.append(InlineKeyboardButton(text=text_val, url=url))
+            elif data:
+                pyro_row.append(InlineKeyboardButton(text=text_val, callback_data=data))
         if btn_row:
             matrix.append(btn_row)
+        if pyro_row:
+            pyro_matrix.append(pyro_row)
+    if as_pyrogram:
+        return InlineKeyboardMarkup(pyro_matrix) if pyro_matrix else None
     if not matrix:
         return None
     return {"inline_keyboard": matrix}
@@ -306,7 +319,6 @@ async def get_bot_api_session():
             limit=100,
             keepalive_timeout=60,
             enable_cleanup_closed=True,
-            ttl_dns_roundrobin=True,
         )
         _bot_api_session = aiohttp.ClientSession(
             connector=connector,
