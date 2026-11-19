@@ -142,6 +142,7 @@ def _run_update(upstream_repo, upstream_branch, version):
 
 
 def _update_packages():
+    scall("uv pip uninstall -y pyrotgfork 2>/dev/null || true", shell=True)
     scall("uv pip install -U -r requirements.txt", shell=True)
     _LOGGER.info("Successfully Updated all the Packages!")
 
