@@ -1,10 +1,15 @@
 # ruff: noqa: E402
-try:
-    from uvloop import install
+import sys
+from os import getenv
 
-    install()
-except ImportError:
-    pass
+# uvloop has critical libuv epoll assertion crashes ('errno == EEXIST') and closed transport bugs on Python 3.13+ / 3.14
+if sys.version_info < (3, 13) and getenv("DISABLE_UVLOOP", "").lower() not in ("true", "1", "yes"):
+    try:
+        from uvloop import install
+
+        install()
+    except ImportError:
+        pass
 
 from asyncio import new_event_loop, set_event_loop
 
