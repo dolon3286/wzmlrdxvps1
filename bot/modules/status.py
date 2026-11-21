@@ -3,7 +3,7 @@ from time import time
 from asyncio import gather, iscoroutinefunction
 from html import escape
 
-from pyrogram.errors import QueryIdInvalid
+from pyrogram.errors import QueryIdInvalid, RPCError
 from pyrogram.enums import ButtonStyle
 
 from .. import (
@@ -95,16 +95,20 @@ async def get_download_status(download):
     )
 
 
+async def _answer_query(query, *args, **kwargs):
+    try:
+        return await query.answer(*args, **kwargs)
+    except (QueryIdInvalid, RPCError):
+        pass
+
+
 @new_task
 async def status_pages(_, query):
     data = query.data.split()
     key = int(data[1])
     if data[2] == "ref":
         await update_status_message(key, force=True)
-        try:
-            await query.answer("Status refreshed!")
-        except QueryIdInvalid:
-            pass
+        await _answer_query(query, "Status refreshed!")
         return
     elif data[2] in ["nex", "pre"]:
         async with task_dict_lock:
@@ -127,14 +131,14 @@ async def status_pages(_, query):
         gid = data[3]
         task = await get_task_by_gid(gid)
         if task is None:
-            await query.answer(f"Task with GID {gid} not found or already finished!", show_alert=True)
+            await _answer_query(query, f"Task with GID {gid} not found or already finished!", show_alert=True)
             return
         if (
             Config.OWNER_ID != user_id
             and task.listener.user_id != user_id
             and (user_id not in user_data or not user_data[user_id].get("SUDO"))
         ):
-            await query.answer("This task is not for you!", show_alert=True)
+            await _answer_query(query, "This task is not for you!", show_alert=True)
             return
         actor_name = escape(query.from_user.first_name or f"User {user_id}")
         actor_mention = f'<a href="tg://user?id={user_id}">{actor_name}</a>'
@@ -160,7 +164,7 @@ async def status_pages(_, query):
         )
         from ..helper.telegram_helper.ephemeral_utils import send_rich_message
         from ..helper.telegram_helper.message_utils import auto_delete_message
-        await query.answer()
+        await _answer_query(query)
         conf_msg = await send_rich_message(
             chat_id=query.message.chat.id,
             text=prompt_text,
@@ -170,7 +174,7 @@ async def status_pages(_, query):
         return
     elif data[2] == "canno":
         from ..helper.telegram_helper.message_utils import delete_message
-        await query.answer("Cancelled!")
+        await _answer_query(query, "Cancelled!")
         await delete_message(query.message)
         return
     elif data[2] == "canconf":
@@ -179,7 +183,7 @@ async def status_pages(_, query):
         gid = data[3]
         task = await get_task_by_gid(gid)
         if task is None:
-            await query.answer(f"Task with GID {gid} already finished or cancelled!", show_alert=True)
+            await _answer_query(query, f"Task with GID {gid} already finished or cancelled!", show_alert=True)
             await delete_message(query.message)
             await update_status_message(key, force=True)
             return
@@ -188,12 +192,12 @@ async def status_pages(_, query):
             and task.listener.user_id != user_id
             and (user_id not in user_data or not user_data[user_id].get("SUDO"))
         ):
-            await query.answer("This task is not for you!", show_alert=True)
+            await _answer_query(query, "This task is not for you!", show_alert=True)
             return
         task_name = task.name()
         obj = task.task()
         await obj.cancel_task()
-        await query.answer(f"Task Cancelled: {task_name}", show_alert=True)
+        await _answer_query(query, f"Task Cancelled: {task_name}", show_alert=True)
         await delete_message(query.message)
         await update_status_message(key, force=True)
         return
@@ -202,14 +206,14 @@ async def status_pages(_, query):
         gid = data[3]
         task = await get_task_by_gid(gid)
         if task is None:
-            await query.answer("Task not found!", show_alert=True)
+            await _answer_query(query, "Task not found!", show_alert=True)
             return
         task_user_id = getattr(task.listener, "user_id", None)
         if task_user_id is None or int(task_user_id) != int(user_id):
-            await query.answer("This task is not for you!", show_alert=True)
+            await _answer_query(query, "This task is not for you!", show_alert=True)
             return
         if not iscoroutinefunction(task.status):
-            await query.answer("The task has finished the download stage!", show_alert=True)
+            await _answer_query(query, "The task has finished the download stage!", show_alert=True)
             return
         st = await task.status()
         if st not in [
@@ -217,7 +221,7 @@ async def status_pages(_, query):
             MirrorStatus.STATUS_PAUSED,
             MirrorStatus.STATUS_QUEUEDL,
         ]:
-            await query.answer(f"Task status ({st}) does not support file selection!", show_alert=True)
+            await _answer_query(query, f"Task status ({st}) does not support file selection!", show_alert=True)
             return
         try:
             if not task.queued:
@@ -240,7 +244,7 @@ async def status_pages(_, query):
                 "<i>Select your files &amp; press <b>Done Selecting</b> to start.</i>"
             )
             from ..helper.telegram_helper.ephemeral_utils import send_rich_message
-            await query.answer()
+            await _answer_query(query)
             await send_rich_message(
                 chat_id=query.message.chat.id,
                 text=msg,
@@ -249,7 +253,7 @@ async def status_pages(_, query):
             )
             return
         except Exception as e:
-            await query.answer(f"Selection error: {e}", show_alert=True)
+            await _answer_query(query, f"Selection error: {e}", show_alert=True)
             return
     elif data[2] == "ov":
         message = query.message
@@ -365,13 +369,7 @@ async def status_pages(_, query):
                 if edited and not isinstance(edited, str):
                     status_dict[key]["message"] = edited
                 status_dict[key]["message"].text = "__OV__"
-        try:
-            await query.answer()
-        except QueryIdInvalid:
-            pass
+        await _answer_query(query)
         return
 
-    try:
-        await query.answer()
-    except QueryIdInvalid:
-        pass
+    await _answer_query(query)
