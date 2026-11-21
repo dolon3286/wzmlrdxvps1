@@ -48,6 +48,19 @@ async def _connect_aria2(retries=5, delay=2):
             await sleep(delay)
 
 
+async def _connect_qbittorrent(retries=15, delay=2):
+    for i in range(retries):
+        for endpoint in ("http://127.0.0.1:8090/api/v2/", "http://localhost:8090/api/v2/"):
+            try:
+                return await create_client(endpoint)
+            except Exception:
+                continue
+        if i == retries - 1:
+            return await create_client("http://127.0.0.1:8090/api/v2/")
+        LOGGER.info(f"Waiting for qBittorrent to start... (attempt {i + 1}/{retries})")
+        await sleep(delay)
+
+
 class TorrentManager:
     aria2 = None
     qbittorrent = None
@@ -65,13 +78,16 @@ class TorrentManager:
                 return
 
             proc = await create_subprocess_exec(
-                BinConfig.QBIT_NAME, "-d", f"--profile={getcwd()}/configs/qbittorrent"
+                BinConfig.QBIT_NAME,
+                "-d",
+                f"--profile={getcwd()}/configs/qbittorrent",
+                "--webui-port=8090",
             )
-            await sleep(2)
-            LOGGER.info(f"qBittorrent started (PID: {proc.pid})")
+            LOGGER.info(f"qBittorrent process spawned (PID: {proc.pid})")
 
-            cls.qbittorrent = await create_client("http://localhost:8090/api/v2/")
+            cls.qbittorrent = await _connect_qbittorrent()
             cls.qbittorrent = wrap_with_retry(cls.qbittorrent)
+            LOGGER.info("qBittorrent initialized successfully.")
 
         except Exception as e:
             LOGGER.error(f"Error during initialization: {e}")
