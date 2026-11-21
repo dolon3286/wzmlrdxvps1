@@ -38,7 +38,7 @@ services:
   tunnel:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://localhost:8080
+    command: tunnel --no-autoupdate --protocol http2 --url http://localhost:8080
     network_mode: "service:app"
 
   # app2:
@@ -60,7 +60,7 @@ services:
   # tunnel2:
   #   image: cloudflare/cloudflared:latest
   #   restart: unless-stopped
-  #   command: tunnel --no-autoupdate --url http://localhost:8080
+  #   command: tunnel --no-autoupdate --protocol http2 --url http://localhost:8080
   #   network_mode: "service:app2"
 
   # Named tunnel (persistent URL with your own domain)
@@ -72,10 +72,10 @@ services:
   # tunnel:
   #   image: cloudflare/cloudflared:latest
   #   restart: unless-stopped
-  #   command: tunnel --no-autoupdate run --token <YOUR_TOKEN>
+  #   command: tunnel --no-autoupdate --protocol http2 run --token <YOUR_TOKEN>
   #   network_mode: "service:app"
   # tunnel2:
   #   image: cloudflare/cloudflared:latest
   #   restart: unless-stopped
-  #   command: tunnel --no-autoupdate run --token <YOUR_TOKEN_2>
+  #   command: tunnel --no-autoupdate --protocol http2 run --token <YOUR_TOKEN_2>
   #   network_mode: "service:app2"
