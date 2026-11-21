@@ -459,16 +459,25 @@ class TelegramUploader:
                                 or f_size > BOT_SAFE_UPLOAD_LIMIT
                             )
                         )
-                        if self._user_session:
-                            self._sent_msg = await TgClient.user.get_messages(
-                                chat_id=self._sent_msg.chat.id,
-                                message_ids=self._sent_msg.id,
-                            )
-                        else:
-                            self._sent_msg = await self._listener.client.get_messages(
-                                chat_id=self._sent_msg.chat.id,
-                                message_ids=self._sent_msg.id,
-                            )
+                        target_client = (
+                            TgClient.user if self._user_session else self._listener.client
+                        )
+                        if self._sent_msg and hasattr(self._sent_msg, "chat") and hasattr(self._sent_msg, "id"):
+                            for attempt in range(3):
+                                try:
+                                    msg = await target_client.get_messages(
+                                        chat_id=self._sent_msg.chat.id,
+                                        message_ids=self._sent_msg.id,
+                                    )
+                                    if msg:
+                                        self._sent_msg = msg
+                                    break
+                                except Exception as e:
+                                    LOGGER.warning(
+                                        f"Failed to refresh sent_msg with target client (attempt {attempt + 1}/3): {e}"
+                                    )
+                                    if attempt < 2:
+                                        await sleep(2)
                     self._last_msg_in_group = False
                     await self._upload_file_task(file_, f_path, dirpath)
                     if self._listener.is_cancelled:
