@@ -1,10 +1,14 @@
 # ruff: noqa: E402
-try:
-    from uvloop import install
+import sys
+from os import getenv
 
-    install()
-except ImportError:
-    pass
+if sys.version_info < (3, 13) and getenv("DISABLE_UVLOOP", "").lower() not in ("true", "1", "yes"):
+    try:
+        from uvloop import install
+
+        install()
+    except ImportError:
+        pass
 
 
 from asyncio import new_event_loop, set_event_loop
@@ -176,10 +180,21 @@ SERVICES = {
 async def lifespan(app: FastAPI):
     global aria2, qbittorrent
     aria2 = Aria2HttpClient("http://localhost:6800/jsonrpc")
-    qbittorrent = await create_client("http://localhost:8090/api/v2/")
+    for i in range(10):
+        for endpoint in ("http://127.0.0.1:8090/api/v2/", "http://localhost:8090/api/v2/"):
+            try:
+                qbittorrent = await create_client(endpoint)
+                break
+            except Exception:
+                continue
+        if qbittorrent:
+            break
+        await sleep(1)
     yield
-    await aria2.close()
-    await qbittorrent.close()
+    if aria2:
+        await aria2.close()
+    if qbittorrent:
+        await qbittorrent.close()
 
 
 app = FastAPI(lifespan=lifespan)
